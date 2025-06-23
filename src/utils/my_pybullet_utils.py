@@ -13,10 +13,9 @@ def start_environment(object_centers, direct=False):
         physicsClient = p.connect(p.GUI)
 
     p.setAdditionalSearchPath(pybullet_data.getDataPath())
+    p.setGravity(0, 0, -10)
 
     objectID = setup_environment(object_centers)
-
-    p.setGravity(0, 0, -10)
     
     while True:
         p.stepSimulation()
@@ -57,4 +56,13 @@ def setup_environment(object_centers):
 
     return objectID
 
-start_environment(object_centers)
+def addTable(object_centers):
+    tablePos = [-0.65, 0.0, 0.0]
+    tableOrientation = p.getQuaternionFromEuler([0, 0, 0])
+    table_id = p.loadURDF("table/table.urdf", tablePos, tableOrientation, useFixedBase=True)
+
+def addHuman(object_centers):
+    humanOrientation = p.getQuaternionFromEuler([1.5, 0, 1.5])
+    human_id = p.loadURDF("humanoid/humanoid.urdf", object_centers["HUMAN_CENTER"], humanOrientation, globalScaling=0.25, useFixedBase=True)
+
+# start_environment(object_centers)

@@ -2,7 +2,6 @@ import pybullet as p
 import pybullet_data
 from pybullet_utils.bullet_client import BulletClient
 import numpy as np
-import time
 
 from typing import List
 import os
@@ -43,7 +42,7 @@ class Environment(AbstractControlledEnv):
         assert len(self.controlled_joints) == self.num_dofs
         self.ee_link_idx = self.robot_model_cfg.ee_link_idx
         self.ee_link_name = self.robot_model_cfg.ee_link_name
-        self.reset_pose = self.robot_model_cfg.reset_pose
+        self.rest_pose = self.robot_model_cfg.rest_pose
         self.joint_limits_low = np.array(self.robot_model_cfg.joint_limits_low)
         self.joint_limits_high = np.array(self.robot_model_cfg.joint_limits_high)
         if self.robot_model_cfg.joint_damping is None:
@@ -142,7 +141,7 @@ class Environment(AbstractControlledEnv):
         Resets simulation to the given pose, or if not given, the default rest pose
         """
         if joint_pos is None:
-            joint_pos = self.reset_pose
+            joint_pos = self.rest_pose
         if joint_vel is None:
             joint_vel = [0 for _ in joint_pos]
 
@@ -354,11 +353,11 @@ class Environment(AbstractControlledEnv):
             )
             self.sim.stepSimulation()
 
-        joint_state = self.sim.getJointStates(
+        joint_states = self.sim.getJointStates(
             bodyUniqueId=self.robot_id,
             jointIndices=self.controlled_joints,
         )
-        return joint_state
+        return joint_states
         
 
 #     def __init__(self, object_centers):
