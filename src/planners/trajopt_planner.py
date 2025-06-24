@@ -6,23 +6,59 @@ from scipy.optimize import LinearConstraint
 
 class TrajOpt(object):
 
-    def __init__(self, n_waypoints, start, goal):
-        """ set hyperparameters """
-        self.n_waypoints = n_waypoints
+    def __init__(self, n_waypoints, start, goal, feat_list, max_iter, environment):
+        # Set hyperparameters
         self.n_joints = len(start)
         self.start = start
         self.goal = goal
-        """ create initial trajectory """
+        self.feat_list = feat_list
+        self.num_features = len(self.feat_list)
+
+        # Initilize weights for each feature
+        self.weights = [0.0] * self.num_features
+
+        # Variables for trajpot parameters
+        self.n_waypoints = n_waypoints
+        self.MAX_ITER = max_iter
+
+        # Set Pybullet environment
+        self.environment = environment
+
+        # Create initial trajectory
         self.xi0 = np.zeros((self.n_waypoints, self.n_joints))  # 5x7
         for idx in range(self.n_waypoints):
             self.xi0[idx,:] = self.start + idx/(self.n_waypoints - 1.0) * (self.goal - self.start)
         self.xi0 = self.xi0.reshape(-1) # flatten initial trajectory into 1D array for scipy minimize (1x35)
-        """ create start point equality constraint """
+
+        # Create start point equality constraint
         self.B = np.zeros((self.n_joints, self.n_joints * self.n_waypoints))    # 7x35
         for idx in range(self.n_joints):
             self.B[idx,idx] = 1
         self.start_constraint = LinearConstraint(self.B, self.start, self.start)
         # you can define a similar constraint for the end, if the final position is fixed
+
+    # Cost functions
+    def efficiency_cost(self, waypt):
+        """
+		Computes the total efficiency cost
+		---
+		input two consecutive waypoints, output scalar cost
+		"""
+        prev_waypt = waypt[0:7]
+        current_waypt = waypt[7:14]
+        feature = self.environment.efficiency_features(current_waypt, prev_waypt)
+        feature_idx = self.feat_list.index("efficiency")
+        return feature * self.weights[feature_idx]
+    
+    def origin_cost(self, waypt):
+        """
+		Computes the total distance from EE to base of robot cost.
+		---
+		input waypoint, output scalar cost
+		"""
+        feature = self.environment.origin_features(waypt)
+        feature_idx = self.feat_list.index('origin')
+        return feature * self.weights[feature_idx]
 
     """ problem specific cost function """
     def trajcost(self, xi):

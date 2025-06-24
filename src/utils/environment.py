@@ -27,7 +27,7 @@ class Environment(AbstractControlledEnv):
             gravity: float = 9.81,
             extract_config_from_rdf=False,
     ):
-        # ---- Create environment ---- #
+        # Create environment
         self.gui = gui
         self.use_grav_comp = use_grav_comp
 
@@ -361,7 +361,7 @@ class Environment(AbstractControlledEnv):
         )
         return joint_states
     
-    # -- Efficiency feature -- #
+    # Efficiency
     def efficiency_features(self, waypt, prev_waypt):
         """
 	    Computes efficiency feature for waypoint, confirmed to match trajopt.
@@ -370,6 +370,16 @@ class Environment(AbstractControlledEnv):
 	    """
         return np.linalg.norm(waypt - prev_waypt)**2
         
+    # Distance to Robot Base
+    def origin_features(self, waypt):
+        """
+		Computes the total feature value over waypoints based on 
+		distance from the base of the robot to its end-effector.
+		---
+		input waypoint, output scalar feature
+		"""
+        ee_position, _ = self.compute_forward_kinematics(waypt)
+        return np.linalg.norm(ee_position)
 
 #     def __init__(self, object_centers):
 #         # Create environment
