@@ -12,9 +12,11 @@ from omegaconf import DictConfig
 from polysim.envs import AbstractControlledEnv
 from polymetis.utils.data_dir import get_full_path_to_urdf
 
+from my_pybullet_utils import *
+
 log = logging.getLogger(__name__)
 
-object_centers = {"HUMAN_CENTER": [-0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929,-0.1,0.0]}
+object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929,-0.1,0.0]}
 
 class Environment(AbstractControlledEnv):
     def __init__(
@@ -75,8 +77,6 @@ class Environment(AbstractControlledEnv):
         else:
             raise Exception(f"Unknown robot definition extension {ext}!")
         
-        
-        
         # Debug utility to print out joint configuration information directly from the URDF/SDF
         if extract_config_from_rdf:
             log.info("************ CONFIG INFO ************")
@@ -113,13 +113,15 @@ class Environment(AbstractControlledEnv):
         log.info("loading urdf file: {}".format(abs_urdf_path))
         robot_id = sim.loadURDF(
             abs_urdf_path,          # might have to change this (different from the urdf from pybullet_data)
-            basePosition=[0.0, 0.0, 0.0],
+            basePosition=[0.0, 0.0, 0.6],
             useFixedBase=True,
             flags=p.URDF_USE_INERTIA_FROM_FILE,
         )
 
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         world_id = p.loadURDF("plane.urdf", [0.0, 0.0, 0.0])
+        addTable()
+        addHuman(object_centers)
         return world_id, robot_id
     
     @staticmethod
@@ -358,6 +360,15 @@ class Environment(AbstractControlledEnv):
             jointIndices=self.controlled_joints,
         )
         return joint_states
+    
+    # -- Efficiency feature -- #
+    def efficiency_features(self, waypt, prev_waypt):
+        """
+	    Computes efficiency feature for waypoint, confirmed to match trajopt.
+	    ---
+	    input two consecutive waypoints, output scalar feature
+	    """
+        return np.linalg.norm(waypt - prev_waypt)**2
         
 
 #     def __init__(self, object_centers):

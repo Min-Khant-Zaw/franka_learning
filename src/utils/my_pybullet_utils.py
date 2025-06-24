@@ -4,6 +4,7 @@ import pybullet_data
 import numpy as np
 
 object_centers = {"HUMAN_CENTER": [-0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929,-0.1,0.0]}
+# object_centers = {"HUMAN_CENTER": [-0.6,-0.55,0.0], "LAPTOP_CENTER": [-0.7929,-0.1,0.0]}
 
 def start_environment(object_centers, direct=False):
     # Connect to physics simulator
@@ -56,8 +57,8 @@ def setup_environment(object_centers):
 
     return objectID
 
-def addTable(object_centers):
-    tablePos = [-0.65, 0.0, 0.0]
+def addTable():
+    tablePos = [0.5, 0.0, 0.0]
     tableOrientation = p.getQuaternionFromEuler([0, 0, 0])
     table_id = p.loadURDF("table/table.urdf", tablePos, tableOrientation, useFixedBase=True)
 
