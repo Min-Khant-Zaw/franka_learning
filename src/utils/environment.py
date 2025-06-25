@@ -3,7 +3,7 @@ import pybullet_data
 from pybullet_utils.bullet_client import BulletClient
 import numpy as np
 
-from typing import List
+from typing import List, Dict
 import os
 import logging
 
@@ -14,19 +14,25 @@ from polymetis.utils.data_dir import get_full_path_to_urdf
 
 from my_pybullet_utils import *
 
+from tf.transformations import euler_from_quaternion
+
 log = logging.getLogger(__name__)
 
-object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929,-0.1,0.0]}
+object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
 
 class Environment(AbstractControlledEnv):
     def __init__(
             self,
             robot_model_cfg: DictConfig,
+            object_centers: Dict[str, List[float]],
             gui: bool,
             use_grav_comp: bool = True,
             gravity: float = 9.81,
             extract_config_from_rdf=False,
     ):
+        # Get objects
+        self.object_centers = object_centers
+
         # Create environment
         self.gui = gui
         self.use_grav_comp = use_grav_comp
@@ -379,7 +385,96 @@ class Environment(AbstractControlledEnv):
 		input waypoint, output scalar feature
 		"""
         ee_position, _ = self.compute_forward_kinematics(waypt)
+        ee_position = np.array(ee_position)
         return np.linalg.norm(ee_position)
+    
+    # Distance to Table
+    def table_features(self, waypt):
+        """
+		Computes the total feature value over waypoints based on 
+		z-axis distance to table.
+		---
+		input waypoint, output scalar feature
+		"""
+        ee_position, _ = self.compute_forward_kinematics(waypt)
+        ee_coord_z = ee_position[2]
+        return ee_coord_z
+    
+    # Coffee (or z-orientation of end-effector)
+    def coffee_features(self, waypt):
+        """
+		Computes the distance to table feature value for waypoint
+		by checking if the EE is oriented vertically according to pitch.
+		---
+		input waypoint, output scalar feature
+		"""
+        _, ee_orientation = self.compute_forward_kinematics(waypt)
+        [roll, pitch, yaw] = euler_from_quaternion(ee_orientation)
+        return pitch
+
+    # Distance to laptop
+    def laptop_features(self, waypt, prev_waypt):
+        """
+		Computes laptop feature value over waypoints, interpolating and
+		sampling between each pair to check for intermediate collisions.
+		---
+		input two consecutive waypoints, output scalar feature
+		"""
+        feature = 0.0
+        NUM_STEPS = 4
+        for step in range(NUM_STEPS):
+            inter_waypt = prev_waypt + (1.0 + step)/(NUM_STEPS)*(waypt - prev_waypt)
+            feature += self.laptop_dist(inter_waypt)
+        return feature
+    
+    def laptop_dist(self, waypt):
+        """
+		Computes distance from end-effector to laptop in xy coords
+		input trajectory, output scalar distance where 
+			0: EE is at more than 0.4 meters away from laptop
+			+: EE is closer than 0.4 meters to laptop
+		"""
+        ee_position, _ = self.compute_forward_kinematics(self, waypt)
+        ee_coord_xy = ee_position[0:2]
+        ee_coord_xy = np.array(ee_coord_xy)
+        laptop_xy = np.array(self.object_centers["LAPTOP_CENTER"][0:2])
+        dist = np.linalg.norm(ee_coord_xy - laptop_xy) - 0.4
+        if dist > 0:
+            return 0
+        return -dist
+    
+    # Distance to human
+    def human_features(self, waypt, prev_waypt):
+        """
+		Computes laptop feature value over waypoints, interpolating and
+		sampling between each pair to check for intermediate collisions.
+		---
+		input two consecutive waypoints, output scalar feature
+		"""
+        feature = 0.0
+        NUM_STEPS = 4
+        for step in range(NUM_STEPS):
+            inter_waypt = prev_waypt + (1.0 + step)/(NUM_STEPS)*(waypt - prev_waypt)
+            feature += self.human_dist(inter_waypt)
+        return feature
+    
+    def human_dist(self, waypt):
+        """
+		Computes distance from end-effector to human in xy coords
+		input trajectory, output scalar distance where 
+			0: EE is at more than 0.4 meters away from human
+			+: EE is closer than 0.4 meters to human
+		"""
+        ee_position, _ = self.compute_forward_kinematics(self, waypt)
+        ee_coord_xy = ee_position[0:2]
+        ee_coord_xy = np.array(ee_coord_xy)
+        laptop_xy = np.array(self.object_centers["HUMAN_CENTER"][0:2])
+        dist = np.linalg.norm(ee_coord_xy - laptop_xy) - 0.4
+        if dist > 0:
+            return 0
+        return -dist
+    
+    
 
 #     def __init__(self, object_centers):
 #         # Create environment

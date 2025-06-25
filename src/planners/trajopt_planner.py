@@ -59,6 +59,50 @@ class TrajOpt(object):
         feature = self.environment.origin_features(waypt)
         feature_idx = self.feat_list.index('origin')
         return feature * self.weights[feature_idx]
+    
+    def table_cost(self, waypt):
+        """
+        Computes the total distance to table cost.
+        ---
+		input waypoint, output scalar cost
+        """
+        feature = self.environment.table_features(waypt)
+        feature_idx = self.feat_list.index("table")
+        return feature * self.weights[feature_idx]
+    
+    def coffee_cost(self, waypt):
+        """
+        Computes the total coffee (EE orientation cost)
+        ---
+        input waypoint, output scalar cost
+        """
+        feature = self.environment.coffee_features(waypt)
+        feature_idx = self.feat_list.index("coffee")
+        return feature * self.weights[feature_idx]
+    
+    def laptop_cost(self, waypt):
+        """
+        Computes the total distance to laptop cost
+		---
+		input waypoint, output scalar cost
+		"""
+        prev_waypt = waypt[0:7]
+        curr_waypt = waypt[7:14]
+        feature = self.environment.laptop_features(curr_waypt,prev_waypt)
+        feature_idx = self.feat_list.index('laptop')
+        return feature * self.weights[feature_idx] * np.linalg.norm(curr_waypt - prev_waypt)
+
+    def human_cost(self, waypt):
+        """
+		Computes the total distance to human cost.
+		---
+		input waypoint, output scalar cost
+		"""
+        prev_waypt = waypt[0:7]
+        curr_waypt = waypt[7:14]
+        feature = self.environment.human_features(curr_waypt,prev_waypt)
+        feature_idx = self.feat_list.index('human')
+        return feature * self.weights[feature_idx] * np.linalg.norm(curr_waypt - prev_waypt)
 
     """ problem specific cost function """
     def trajcost(self, xi):
