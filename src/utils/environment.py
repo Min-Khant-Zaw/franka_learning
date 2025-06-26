@@ -367,6 +367,32 @@ class Environment(AbstractControlledEnv):
         )
         return joint_states
     
+    # ---- Custom environmental features ---- #
+    def featurize(self, waypts, feat_list):
+        """
+		Computes the user-defined features for a given trajectory.
+		---
+		input trajectory waypoints, output list of feature values
+		"""
+        num_features = len(feat_list)
+        features = [[0.0 for _ in range(len(waypts)-1)] for _ in range(0, num_features)]
+
+        for index in range(len(waypts)-1):
+            for feat in range(num_features):
+                if feat_list[feat] == 'table':
+                    features[feat][index] = self.table_features(waypts[index+1])
+                elif feat_list[feat] == 'coffee':
+                    features[feat][index] = self.coffee_features(waypts[index+1])
+                elif feat_list[feat] == 'human':
+                    features[feat][index] = self.human_features(waypts[index+1],waypts[index])
+                elif feat_list[feat] == 'laptop':
+                    features[feat][index] = self.laptop_features(waypts[index+1],waypts[index])
+                elif feat_list[feat] == 'origin':
+                    features[feat][index] = self.origin_features(waypts[index+1])
+                elif feat_list[feat] == 'efficiency':
+                    features[feat][index] = self.efficiency_features(waypts[index+1],waypts[index])
+        return features
+    
     # Efficiency
     def efficiency_features(self, waypt, prev_waypt):
         """
@@ -474,27 +500,20 @@ class Environment(AbstractControlledEnv):
             return 0
         return -dist
     
-    
+    # ---- Custom environmental constraints --- #
+    def table_constraint(self, waypt):
+        """
+		Constrains z-axis of robot's end-effector to always be 
+		above the table.
+		"""
+        ee_position, _ = self.compute_forward_kinematics(self, waypt)
+        ee_coord_z = ee_position[2]
+        if ee_coord_z > 0:
+            ee_coord_z = 0
+        return -ee_coord_z
 
-#     def __init__(self, object_centers):
-#         # Create environment
-#         self.objectID = start_environment(object_centers)
-#         self.robotID = self.objectID["robot"]
-
-#         self.object_centers = object_centers
-
-#     def kill_environment(self):
-#         """
-# 		Destroys Pybullet thread and environment for clean shutdown.
-# 		"""
-#         p.disconnect()
-
-
-# if __name__ == "__main__":
-#     env = Environment(object_centers)
-#     try:
-#         while True:
-#             p.stepSimulation()
-#             time.sleep(1.0 / 240.0)
-#     except KeyboardInterrupt:
-#         env.kill_environment()
+    def kill_environment(self):
+        """
+		Destroys Pybullet thread and environment for clean shutdown.
+		"""
+        self.sim.disconnect()
