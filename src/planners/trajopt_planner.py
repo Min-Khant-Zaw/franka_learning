@@ -6,7 +6,7 @@ from scipy.optimize import LinearConstraint, NonlinearConstraint
 from utils.trajectory import Trajectory
 
 class TrajOpt(object):
-    def __init__(self, n_waypoints, start, goal, goal_pose, feat_list, max_iter, environment):
+    def __init__(self, n_waypoints, start, goal, goal_pose, feat_list, max_iter, environment, traj_seed=None):
         # Set hyperparameters
         self.n_joints = len(start)
         self.start = start
@@ -26,10 +26,15 @@ class TrajOpt(object):
         self.environment = environment
 
         # Create initial trajectory
-        self.xi0 = np.zeros((self.n_waypoints, self.n_joints))  # 5x7
-        for idx in range(self.n_waypoints):
-            self.xi0[idx,:] = self.start + idx/(self.n_waypoints - 1.0) * (self.goal - self.start)
-        self.xi0 = self.xi0.reshape(-1) # flatten initial trajectory into 1D array for scipy minimize (1x35)
+        if traj_seed is None:
+            print("Using straight line initialization!")
+            self.xi0 = np.zeros((self.n_waypoints, self.n_joints))  # 5x7
+            for idx in range(self.n_waypoints):
+                self.xi0[idx,:] = self.start + idx/(self.n_waypoints - 1.0) * (self.goal - self.start)
+            self.xi0 = self.xi0.reshape(-1) # flatten initial trajectory into 1D array for scipy minimize (1x35)
+        else:
+            print("Using trajectory seed initialization!")
+            self.xi0 = traj_seed
 
         # Create start point equality constraint
         self.B = np.zeros((self.n_joints, self.n_joints * self.n_waypoints))    # 7x35
@@ -165,7 +170,7 @@ class TrajOpt(object):
         xi = res.x.reshape(self.n_waypoints,self.n_joints)
         return xi, res, time.time() - start_t
     
-    def replan(self, weights, T, timestep, seed=None):
+    def replan(self, weights, T, timestep):
         """
         Replan the trajectory from start to goal given weights.
         ---
