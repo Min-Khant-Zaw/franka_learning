@@ -19,10 +19,10 @@ class Trajectory(object):
 		Error if num_waypts is smaller than current waypts length.
 
 		Params:
-			num_waypts [int] -- Number of waypoints to downsample to.
+			num_waypts [int] -- Number of waypoints to upsample to.
 
 		Returns:
-			upsampled_waypts [Trajectory] -- Downsampled trajectory.
+			upsampled_waypts [Trajectory] -- Upampled trajectory.
 		"""
 		assert num_waypts >= len(self.waypts), "Upsampling requires a larger number of waypoints to upsample to. Your number is smaller."
 		assert len(self.waypts) > 1, "Cannot upsample a one-waypoint trajectory."
