@@ -508,9 +508,7 @@ class Environment(AbstractControlledEnv):
 		"""
         ee_position, _ = self.compute_forward_kinematics(self, waypt)
         ee_coord_z = ee_position[2]
-        if ee_coord_z > 0:
-            ee_coord_z = 0
-        return -ee_coord_z
+        return ee_coord_z
 
     def kill_environment(self):
         """

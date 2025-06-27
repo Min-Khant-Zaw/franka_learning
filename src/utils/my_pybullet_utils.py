@@ -55,6 +55,9 @@ def setup_environment(object_centers):
     frankaOrientation = p.getQuaternionFromEuler([0, 0, 0])
     objectID["robot"] = p.loadURDF("franka_panda/panda.urdf", frankaPos , frankaOrientation, useFixedBase=True)
 
+    # print(p.getLinkStates(objectID["robot"], [0, 1, 2, 3, 4, 5, 6]))
+    # print(p.getLinkState(objectID["robot"], 1))
+
     return objectID
 
 def addTable():
