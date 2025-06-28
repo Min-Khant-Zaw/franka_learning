@@ -70,11 +70,13 @@ def main(cfg):
     atexit.register(cleanup)
     signal.signal(signal.SIGTERM, lambda signal_number, stack_frame: cleanup())
 
+    object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
+
     # Connect simulation client to the server
     robot_model_cfg = cfg.robot_model
     gui = cfg.gui
     use_grav_comp = cfg.use_grav_comp
-    env = Environment(robot_model_cfg=robot_model_cfg, gui=gui, use_grav_comp=use_grav_comp)
+    env = Environment(robot_model_cfg=robot_model_cfg, object_centers=object_centers, gui=gui, use_grav_comp=use_grav_comp)
     metadata_cfg = cfg.robot_client.metadata_cfg
 
     sim = GrpcSimulationClient(
