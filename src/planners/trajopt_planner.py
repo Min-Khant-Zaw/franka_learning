@@ -70,8 +70,8 @@ class TrajOpt(object):
         as the given goal pose.
         """
         xi = xi.reshape((self.n_waypoints, self.n_joints))
-        last_waypt = xi[-1]
-        ee_position, _ = self.environment.compute_forward_kinematics(self, last_waypt)
+        last_waypt = xi[-1].tolist()
+        ee_position, _ = self.environment.compute_forward_kinematics(last_waypt)
         return ee_position
 
     # Cost functions
@@ -166,8 +166,14 @@ class TrajOpt(object):
     # Use scipy optimizer to get optimal trajectory
     def optimize(self, method='SLSQP'):
         start_t = time.time()
-        res = minimize(self.trajcost, self.xi0, method=method, constraints=[self.start_constraint, self.table_constraint, self.goal_constraint])
-        xi = res.x.reshape(self.n_waypoints,self.n_joints)
+        res = minimize(
+            self.trajcost, 
+            self.xi0, 
+            method=method, 
+            constraints=[self.start_constraint, self.table_constraint, self.goal_constraint],
+            options={'maxiter': self.MAX_ITER}
+        )
+        xi = res.x.reshape(self.n_waypoints, self.n_joints)
         return xi, res, time.time() - start_t
     
     def replan(self, weights, T, timestep):
@@ -187,7 +193,7 @@ class TrajOpt(object):
         assert weights is not None, "The weights vector is empty. Cannot plan without a cost preference."
         self.weights = weights
 
-        waypts = self.optimize(method='SLSQP')
+        waypts, _, _ = self.optimize(method='SLSQP')
         waypts_time = np.linspace(0.0, T, self.n_waypoints)
         traj = Trajectory(waypts, waypts_time)
         return traj.upsample(int(T/timestep) + 1)

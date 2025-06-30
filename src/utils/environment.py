@@ -12,7 +12,7 @@ from omegaconf import DictConfig
 from polysim.envs import AbstractControlledEnv
 from polymetis.utils.data_dir import get_full_path_to_urdf
 
-from my_pybullet_utils import *
+from utils.my_pybullet_utils import *
 
 from tf.transformations import euler_from_quaternion
 
@@ -410,6 +410,7 @@ class Environment(AbstractControlledEnv):
 		---
 		input waypoint, output scalar feature
 		"""
+        waypt = waypt.tolist()
         ee_position, _ = self.compute_forward_kinematics(waypt)
         ee_position = np.array(ee_position)
         return np.linalg.norm(ee_position)
@@ -422,6 +423,7 @@ class Environment(AbstractControlledEnv):
 		---
 		input waypoint, output scalar feature
 		"""
+        waypt = waypt.tolist()
         ee_position, _ = self.compute_forward_kinematics(waypt)
         ee_coord_z = ee_position[2]
         return ee_coord_z
@@ -434,6 +436,7 @@ class Environment(AbstractControlledEnv):
 		---
 		input waypoint, output scalar feature
 		"""
+        waypt = waypt.tolist()
         _, ee_orientation = self.compute_forward_kinematics(waypt)
         [roll, pitch, yaw] = euler_from_quaternion(ee_orientation)
         return pitch
@@ -460,7 +463,8 @@ class Environment(AbstractControlledEnv):
 			0: EE is at more than 0.4 meters away from laptop
 			+: EE is closer than 0.4 meters to laptop
 		"""
-        ee_position, _ = self.compute_forward_kinematics(self, waypt)
+        waypt = waypt.tolist()
+        ee_position, _ = self.compute_forward_kinematics(waypt)
         ee_coord_xy = ee_position[0:2]
         ee_coord_xy = np.array(ee_coord_xy)
         laptop_xy = np.array(self.object_centers["LAPTOP_CENTER"][0:2])
@@ -491,7 +495,8 @@ class Environment(AbstractControlledEnv):
 			0: EE is at more than 0.4 meters away from human
 			+: EE is closer than 0.4 meters to human
 		"""
-        ee_position, _ = self.compute_forward_kinematics(self, waypt)
+        waypt = waypt.tolist()
+        ee_position, _ = self.compute_forward_kinematics(waypt)
         ee_coord_xy = ee_position[0:2]
         ee_coord_xy = np.array(ee_coord_xy)
         laptop_xy = np.array(self.object_centers["HUMAN_CENTER"][0:2])
@@ -506,7 +511,8 @@ class Environment(AbstractControlledEnv):
 		Constrains z-axis of robot's end-effector to always be 
 		above the table.
 		"""
-        ee_position, _ = self.compute_forward_kinematics(self, waypt)
+        waypt = waypt.tolist()
+        ee_position, _ = self.compute_forward_kinematics(waypt)
         ee_coord_z = ee_position[2]
         return ee_coord_z
 

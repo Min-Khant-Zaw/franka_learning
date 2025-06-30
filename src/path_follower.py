@@ -1,11 +1,17 @@
 from typing import Dict, List
 
 import torch
+import numpy as np
 
 import torchcontrol as toco
 from torchcontrol.utils.tensor_utils import to_tensor, stack_trajectory
 
+from polymetis import RobotInterface
+
+import hydra
+
 from planners.trajopt_planner import TrajOpt
+from utils.environment import Environment
 
 class PathFollower(toco.PolicyModule):
     def __init__(
@@ -81,3 +87,103 @@ class PathFollower(toco.PolicyModule):
             self.set_terminated()
 
         return {"joint_torques": torque_output}
+
+@hydra.main(config_path="../config", config_name="launch_robot")
+def main(cfg):
+    # Initialize robot interface
+    robot = RobotInterface(
+        ip_address="localhost"
+    )
+
+    # Reset
+    robot.go_home()
+
+    # Create policy instance
+    default_kq = torch.Tensor(robot.metadata.default_Kq)
+    default_kqd = torch.Tensor(robot.metadata.default_Kqd)
+    default_kx = torch.Tensor(robot.metadata.default_Kx)
+    default_kxd = torch.Tensor(robot.metadata.default_Kxd)
+
+    # Create trajectory planner
+    n_waypoints = 5
+    start = np.array([104.2, 151.6, 183.8, 101.8, 224.2, 216.9, 225.0])
+    goal = np.array([210.8, 101.6, 192.0, 114.7, 222.2, 246.1, 322.0])
+    goal_pose = np.array([-0.46513, 0.29041, 0.69497])
+    feat_list = ["efficiency", "table", "coffee"]
+    feat_weights = [1.0,0.0,1.0]
+    object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
+    max_iter = 50
+    T = 20.0
+    timestep = 0.5
+
+    # print(robot.metadata)
+
+    robot_model_cfg = cfg.robot_model
+
+    environment = Environment(
+        robot_model_cfg=robot_model_cfg,
+        object_centers=object_centers,
+        gui=False
+    )
+
+    traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, max_iter, environment)
+
+    traj = traj_planner.replan(feat_weights, T, timestep)   # returns Trajectory(waypts, waypts_time) object
+
+    joint_pos_trajectory = traj.waypts
+    print(joint_pos_trajectory)
+
+
+
+    # policy = PathFollower(
+
+    # )
+
+if __name__ == "__main__":
+    main()
+    # # Initialize robot interface
+    # robot = RobotInterface(
+    #     ip_address="localhost"
+    # )
+
+    # # Reset
+    # robot.go_home()
+
+    # # Create policy instance
+    # default_kq = torch.Tensor(robot.metadata.default_Kq)
+    # default_kqd = torch.Tensor(robot.metadata.default_Kqd)
+    # default_kx = torch.Tensor(robot.metadata.default_Kx)
+    # default_kxd = torch.Tensor(robot.metadata.default_Kxd)
+
+    # # Create trajectory planner
+    # n_waypoints = 5
+    # start = [104.2, 151.6, 183.8, 101.8, 224.2, 216.9, 225.0]
+    # goal = [210.8, 101.6, 192.0, 114.7, 222.2, 246.1, 322.0]
+    # goal_pose = [-0.46513, 0.29041, 0.69497]
+    # feat_list = ["efficiency", "table", "coffee"]
+    # feat_weights = [1.0,0.0,1.0]
+    # object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
+    # max_iter = 50
+    # T = 20.0
+    # timestep = 0.5
+
+    # print(robot.metadata)
+
+    # environment = Environment(
+    #     robot_model_cfg=robot.metadata.robot_model_cfg,
+    #     object_centers=object_centers,
+    #     gui=True
+    # )
+
+    # traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, max_iter, environment)
+
+    # traj = traj_planner.replan(feat_weights, T, timestep)   # returns Trajectory(waypts, waypts_time) object
+
+    # joint_pos_trajectory = traj.waypts
+    # print(joint_pos_trajectory)
+
+
+
+    # # policy = PathFollower(
+
+    # # )
