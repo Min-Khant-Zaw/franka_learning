@@ -6,17 +6,14 @@ from scipy.optimize import LinearConstraint, NonlinearConstraint
 from utils.trajectory import Trajectory
 
 class TrajOpt(object):
-    def __init__(self, n_waypoints, start, goal, goal_pose, feat_list, max_iter, environment, traj_seed=None):
+    def __init__(self, n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment, traj_seed=None):
         # Set hyperparameters
         self.n_joints = len(start)
         self.start = start
         self.goal = goal
         self.goal_pose = goal_pose
         self.feat_list = feat_list
-        self.num_features = len(self.feat_list)
-
-        # Initilize weights for each feature
-        self.weights = [0.0] * self.num_features
+        self.weights = feat_weights
 
         # Variables for trajpot parameters
         self.n_waypoints = n_waypoints
@@ -142,7 +139,7 @@ class TrajOpt(object):
         return feature * self.weights[feature_idx] * np.linalg.norm(curr_waypt - prev_waypt)
 
     # Problem specific cost function
-    def trajcost(self, xi):
+    def trajcost(self, xi: np.ndarray):
         xi = xi.reshape((self.n_waypoints, self.n_joints))    # 5x7
         cost_total = 0
 
@@ -155,11 +152,11 @@ class TrajOpt(object):
             if 'origin' in self.feat_list:
                 cost_total += self.origin_cost(xi[idx])
             if 'laptop' in self.feat_list:
-                cost_total += self.laptop_cost(xi[idx - 1] + xi[idx])
+                cost_total += self.laptop_cost(np.concatenate((xi[idx - 1], xi[idx])))
             if 'human' in self.feat_list:
-                cost_total += self.human_cost(xi[idx - 1] + xi[idx])
+                cost_total += self.human_cost(np.concatenate((xi[idx - 1], xi[idx])))
             if 'efficiency' in self.feat_list:
-                cost_total += self.efficiency_cost(xi[idx - 1] + xi[idx])
+                cost_total += self.efficiency_cost(np.concatenate((xi[idx - 1], xi[idx])))
 
         return cost_total
 
