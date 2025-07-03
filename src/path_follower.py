@@ -5,6 +5,7 @@ import numpy as np
 
 import torchcontrol as toco
 from torchcontrol.utils.tensor_utils import to_tensor, stack_trajectory
+from torchcontrol.policies.trajectory import JointTrajectoryExecutor
 
 from polymetis import RobotInterface
 from polymetis.utils.data_dir import get_full_path_to_urdf
@@ -14,6 +15,8 @@ import time
 
 from planners.trajopt_planner import TrajOpt
 from utils.environment import Environment
+
+from tf.transformations import euler_from_quaternion
 
 class PathFollower(toco.PolicyModule):
     def __init__(
@@ -25,7 +28,6 @@ class PathFollower(toco.PolicyModule):
             Kx,
             Kxd,
             robot_model: torch.nn.Module,
-            timestep,
             ignore_gravity=True
     ):
         """
@@ -59,9 +61,6 @@ class PathFollower(toco.PolicyModule):
         )
         self.joint_pd = toco.modules.feedback.HybridJointSpacePD(Kq, Kqd, Kx, Kxd)
 
-        self.start_time = time.time()
-        self.timestep = timestep
-
         # Initialize step count
         self.i = 0
 
@@ -91,10 +90,13 @@ class PathFollower(toco.PolicyModule):
         self.i += 1
         if self.i == self.N:
             self.set_terminated()
-        # elasped_time = time.time() - self.start_time
+        # elasped_time = self.steps / self.hz
         # self.i = min(int(elasped_time / self.timestep), self.N - 1)
         # if elasped_time == self.N * self.timestep:
         #     self.set_terminated()
+        # if self.steps > self.time_horizon:
+        #     self.set_terminated()
+        # self.steps += 1
 
         return {"joint_torques": torque_output}
 
@@ -134,62 +136,68 @@ def main(cfg):
     # Reset
     robot.go_home()
 
-    # Create policy instance
+    # Get robot metadata
     default_kq = torch.Tensor(robot.metadata.default_Kq)
     default_kqd = torch.Tensor(robot.metadata.default_Kqd)
     default_kx = torch.Tensor(robot.metadata.default_Kx)
     default_kxd = torch.Tensor(robot.metadata.default_Kxd)
+    hz = robot.metadata.hz
 
-    # Create trajectory planner
+    # Define variables
     n_waypoints = 5
-    start = np.array([104.2, 151.6, 183.8, 101.8, 224.2, 216.9, 225.0])
-    goal = np.array([210.8, 101.6, 192.0, 114.7, 222.2, 246.1, 322.0])
+    start = np.array([-0.1515, -0.2002, -0.0195, -2.2691,  0.4506,  2.7031, -1.9165])
+    goal = np.array([2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973])
     goal_pose = np.array([-0.46513, 0.29041, 0.69497])
     feat_list = ["efficiency", "table", "coffee"]
     feat_weights = [1.0, 0.0, 1.0]
     object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
     max_iter = 50
     T = 20.0
-    timestep = 0.5
+    num_steps = int(T * hz)
+    timestep = T / num_steps
 
-    # print(robot.metadata)
-
+    # Get robot model configuration
     robot_model_cfg = cfg.robot_model
 
+    # Get the urdf file of Franka Panda
     robot_description_path = get_full_path_to_urdf(
             robot_model_cfg.robot_description_path
         )
 
+    # Get robot model from torchcontrol.models
     robot_model = toco.models.RobotModelPinocchio(
         urdf_filename=robot_description_path,
         ee_link_name=robot_model_cfg.ee_link_name
     )
 
+    # Create Pybullet environment
     environment = Environment(
         robot_model_cfg=robot_model_cfg,
         object_centers=object_centers,
         gui=False
     )
 
+    # Set up trajectory planner
     traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment)
 
+    # Plan trajectory
     traj = traj_planner.replan(feat_weights, T, timestep)   # returns Trajectory(waypts, waypts_time) object
 
     joint_pos_trajectory = traj.waypts
-    waypt_times = traj.waypts_time
-    print(joint_pos_trajectory)
-    print(waypt_times)
 
     # Calculate joint velocity trajectory
     joint_vel_trajectory = compute_joint_velocities(joint_pos_trajectory, timestep)
-    print(joint_vel_trajectory)
 
+    # Convert the trajectory to torch.Tensor()
     joint_pos_trajectory = to_tensor(joint_pos_trajectory)
     joint_vel_trajectory = to_tensor(joint_vel_trajectory)
 
-    print(joint_pos_trajectory)
-    print(joint_vel_trajectory)
+    # Move the robot to start
+    start = to_tensor(start)
+    print(f"\nMoving joints to start: {start} ...\n")
+    state_log = robot.move_to_joint_positions(positions=start, time_to_go=20.0)
 
+    # Create path follower policy
     policy = PathFollower(
         joint_pos_trajectory=joint_pos_trajectory,
         joint_vel_trajectory=joint_vel_trajectory,
@@ -198,15 +206,25 @@ def main(cfg):
         Kx=default_kx,
         Kxd=default_kxd,
         robot_model=robot_model,
-        timestep=timestep
     )
 
     # Run policy
     print("\nRunning path follower policy ...\n")
     state_log = robot.send_torch_policy(policy)
 
-    print(environment.get_current_joint_pos())
-    print(environment.get_current_joint_vel())
+    # Get updated joint_positions
+    joint_positions = robot.get_joint_positions()
+    joint_velocities = robot.get_joint_velocities()
+
+    print(f"\nNew joint positions: {joint_positions}\n")
+    print(f"\nNew joint velocities: {joint_velocities}\n")
+
+    ee_pos, ee_quat = robot.get_ee_pose()
+    print(f"\nNew end effector pose: {ee_pos}\n")
+
+    [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
+    print(f"\nNew end effector pitch: {pitch}\n")
+
 
 if __name__ == "__main__":
     main()
