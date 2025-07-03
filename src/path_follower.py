@@ -90,13 +90,6 @@ class PathFollower(toco.PolicyModule):
         self.i += 1
         if self.i == self.N:
             self.set_terminated()
-        # elasped_time = self.steps / self.hz
-        # self.i = min(int(elasped_time / self.timestep), self.N - 1)
-        # if elasped_time == self.N * self.timestep:
-        #     self.set_terminated()
-        # if self.steps > self.time_horizon:
-        #     self.set_terminated()
-        # self.steps += 1
 
         return {"joint_torques": torque_output}
 
@@ -146,7 +139,7 @@ def main(cfg):
     # Define variables
     n_waypoints = 5
     start = np.array([-0.1515, -0.2002, -0.0195, -2.2691,  0.4506,  2.7031, -1.9165])
-    goal = np.array([2.8973, 1.7628, 2.8973, -0.0698, 2.8973, 3.7525, 2.8973])
+    goal = np.array([1.8973, 0.7628, 1.8973, -0.0658, 1.8973, 1.7525, 1.8973])
     goal_pose = np.array([-0.46513, 0.29041, 0.69497])
     feat_list = ["efficiency", "table", "coffee"]
     feat_weights = [1.0, 0.0, 1.0]
