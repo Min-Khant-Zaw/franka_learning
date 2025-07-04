@@ -5,7 +5,6 @@ import numpy as np
 
 import torchcontrol as toco
 from torchcontrol.utils.tensor_utils import to_tensor, stack_trajectory
-from torchcontrol.policies.trajectory import JointTrajectoryExecutor
 
 from polymetis import RobotInterface
 from polymetis.utils.data_dir import get_full_path_to_urdf
@@ -117,7 +116,7 @@ def compute_joint_velocities(joint_pos_trajectory: np.ndarray, timestep: float) 
 
     return joint_vel_trajectory
 
-@hydra.main(config_path="../config", config_name="launch_robot")
+@hydra.main(config_path="../config", config_name="path_follower")
 def main(cfg):
 
     # Initialize robot interface
@@ -132,16 +131,14 @@ def main(cfg):
     default_kxd = torch.Tensor(robot.metadata.default_Kxd)
     hz = robot.metadata.hz
 
-    # Define variables
-    n_waypoints = 5
-    start = np.array([-0.1515, -0.2002, -0.0195, -2.2691,  0.4506,  2.7031, -1.9165])
-    goal = np.array([1.8973, 0.7628, 1.8973, -0.0658, 1.8973, 1.7525, 1.8973])
-    goal_pose = np.array([-0.46513, 0.29041, 0.69497])
-    feat_list = ["efficiency", "table", "coffee"]
-    feat_weights = [1.0, 0.0, 1.0]
-    object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
-    max_iter = 50
-    T = 60.0
+    # ----- General Setup ----- #
+    start = np.array(cfg.setup.start)
+    goal = np.array(cfg.setup.goal)
+    goal_pose = np.array(cfg.setup.goal_pose)
+    feat_list = cfg.setup.feat_list
+    feat_weights = cfg.setup.feat_weights
+    object_centers = cfg.setup.object_centers
+    T = cfg.setup.T
     num_steps = int(T * hz)
     timestep = T / num_steps
 
@@ -169,8 +166,16 @@ def main(cfg):
         gui=False
     )
 
-    # Set up trajectory planner
-    traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment)
+    # ----- Planner Setup ----- #
+    # Retrieve the planner specific parameters
+    planner_type = cfg.planner.type
+    if planner_type == "trajopt":
+        max_iter = cfg.planner.max_iter
+        n_waypoints = cfg.planner.n_waypoints
+        # Initialize trajectory planner
+        traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment)
+    else:
+        raise Exception(f'\nPlanner {planner_type} not implemented.\n')
 
     # Plan trajectory
     traj = traj_planner.replan(feat_weights, T, timestep)   # returns Trajectory(waypts, waypts_time) object
