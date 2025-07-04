@@ -81,6 +81,11 @@ class Environment(AbstractControlledEnv):
         else:
             raise Exception(f"Unknown robot definition extension {ext}!")
         
+        # Add objects
+        addTable()
+        if "HUMAN_CENTER" in self.object_centers:
+            addHuman(self.object_centers)
+        
         # Debug utility to print out joint configuration information directly from the URDF/SDF
         if extract_config_from_rdf:
             log.info("************ CONFIG INFO ************")
@@ -124,12 +129,6 @@ class Environment(AbstractControlledEnv):
 
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         world_id = p.loadURDF("plane.urdf", [0.0, 0.0, 0.0])
-
-        # Add objects
-        addTable()
-        if "HUMAN_CENTER" in object_centers:
-            addHuman(object_centers)
-
         return world_id, robot_id
     
     @staticmethod
