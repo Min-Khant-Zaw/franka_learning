@@ -11,7 +11,6 @@ from polymetis import RobotInterface
 from polymetis.utils.data_dir import get_full_path_to_urdf
 
 import hydra
-import time
 
 from planners.trajopt_planner import TrajOpt
 from utils.environment import Environment
@@ -126,9 +125,6 @@ def main(cfg):
         ip_address="localhost"
     )
 
-    # Reset
-    robot.go_home()
-
     # Get robot metadata
     default_kq = torch.Tensor(robot.metadata.default_Kq)
     default_kqd = torch.Tensor(robot.metadata.default_Kqd)
@@ -145,9 +141,12 @@ def main(cfg):
     feat_weights = [1.0, 0.0, 1.0]
     object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
     max_iter = 50
-    T = 20.0
+    T = 60.0
     num_steps = int(T * hz)
     timestep = T / num_steps
+
+    # Reset
+    robot.go_home(time_to_go=T)
 
     # Get robot model configuration
     robot_model_cfg = cfg.robot_model
@@ -188,7 +187,7 @@ def main(cfg):
     # Move the robot to start
     start = to_tensor(start)
     print(f"\nMoving joints to start: {start} ...\n")
-    state_log = robot.move_to_joint_positions(positions=start, time_to_go=20.0)
+    state_log = robot.move_to_joint_positions(positions=start, time_to_go=T)
 
     # Create path follower policy
     policy = PathFollower(
