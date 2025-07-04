@@ -18,8 +18,6 @@ from tf.transformations import euler_from_quaternion
 
 log = logging.getLogger(__name__)
 
-object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
-
 class Environment(AbstractControlledEnv):
     def __init__(
             self,
@@ -126,8 +124,12 @@ class Environment(AbstractControlledEnv):
 
         p.setAdditionalSearchPath(pybullet_data.getDataPath())
         world_id = p.loadURDF("plane.urdf", [0.0, 0.0, 0.0])
+
+        # Add objects
         addTable()
-        addHuman(object_centers)
+        if "HUMAN_CENTER" in object_centers:
+            addHuman(object_centers)
+
         return world_id, robot_id
     
     @staticmethod
