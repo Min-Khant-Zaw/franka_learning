@@ -178,9 +178,6 @@ class TrajOpt(object):
         Replan the trajectory from start to goal given weights.
         ---
         Parameters:
-            start -- Start position
-            goal -- Goal position.
-            goal_pose -- Goal pose (optional: can be None).
             weights -- Weights used for the planning objective.
             T [float] -- Time horizon for the desired trajectory.
             timestep [float] -- Frequency of waypoints in desired trajectory.
