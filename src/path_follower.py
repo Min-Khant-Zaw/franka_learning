@@ -19,16 +19,8 @@ from tf.transformations import euler_from_quaternion
 class PathFollower(toco.PolicyModule):
     def __init__(
             self,
-            n_waypoints,
-            start,
-            goal,
-            goal_pose,
-            feat_list,
-            feat_weights,
-            max_iter,
-            environment,
-            T,
-            timestep,
+            joint_pos_trajectory: List[torch.Tensor],
+            joint_vel_trajectory: List[torch.Tensor],
             Kq,
             Kqd,
             Kx,
@@ -53,23 +45,8 @@ class PathFollower(toco.PolicyModule):
         """
         super().__init__()
 
-        # Initialize trajectory planner
-        self.traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment)
-
-        # Plan trajectory
-        self.traj = self.traj_planner.replan(feat_weights, T, timestep)   # returns Trajectory(waypts, waypts_time) object
-
-        self.joint_pos_trajectory = self.traj.waypts
-
-        # Calculate joint velocity trajectory
-        self.joint_vel_trajectory = self.compute_joint_velocities(self.joint_pos_trajectory, timestep)
-
-        # Convert the trajectory to torch.Tensor()
-        self.joint_pos_trajectory = to_tensor(self.joint_pos_trajectory)
-        self.joint_vel_trajectory = to_tensor(self.joint_vel_trajectory)
-
-        print(f"\nJoint position trajectory: {self.joint_pos_trajectory}\n")
-        print(f"\nJoint velocity trajectory: {self.joint_vel_trajectory}\n")
+        self.joint_pos_trajectory = to_tensor(stack_trajectory(joint_pos_trajectory))
+        self.joint_vel_trajectory = to_tensor(stack_trajectory(joint_vel_trajectory))
 
         # Get the number of waypoints
         self.N = self.joint_pos_trajectory.shape[0]
@@ -89,8 +66,6 @@ class PathFollower(toco.PolicyModule):
         # Parse current state
         joint_pos_current = state_dict["joint_positions"]
         joint_vel_current = state_dict["joint_velocities"]
-        external_torques = state_dict["motor_torques_external"]
-        print(f"\nCurrent External Joint Torques: {external_torques}\n")
 
         # Query plan for desired state
         joint_pos_desired = self.joint_pos_trajectory[self.i, :]
@@ -116,30 +91,30 @@ class PathFollower(toco.PolicyModule):
 
         return {"joint_torques": torque_output}
 
-    def compute_joint_velocities(self, joint_pos_trajectory: np.ndarray, timestep: float) -> np.ndarray:
-        """
-        Compute the velocities of joints using finite difference of joint position trajectory
+def compute_joint_velocities(joint_pos_trajectory: np.ndarray, timestep: float) -> np.ndarray:
+    """
+    Compute the velocities of joints using finite difference of joint position trajectory
 
-        Args:
-            joint_pos_trajectory: (m, n) numpy array of desired joint position trajectory
-            timestep: time between waypoints
-        
-        Returns:
-            joint_vel_trajectory: (m, n) numpy array of desired joint velocity trajectory
-        """
-        m, n = np.shape(joint_pos_trajectory)
-        joint_vel_trajectory = np.zeros((m, n))
+    Args:
+        joint_pos_trajectory: (m, n) numpy array of desired joint position trajectory
+        timestep: time between waypoints
+    
+    Returns:
+        joint_vel_trajectory: (m, n) numpy array of desired joint velocity trajectory
+    """
+    m, n = np.shape(joint_pos_trajectory)
+    joint_vel_trajectory = np.zeros((m, n))
 
-        # Forward difference for the first point
-        joint_vel_trajectory[0] = (joint_pos_trajectory[1] - joint_pos_trajectory[0]) / timestep
+    # Forward difference for the first point
+    joint_vel_trajectory[0] = (joint_pos_trajectory[1] - joint_pos_trajectory[0]) / timestep
 
-        # Backward difference for the last point
-        joint_vel_trajectory[-1] = (joint_pos_trajectory[-1] - joint_pos_trajectory[-2]) / timestep
+    # Backward difference for the last point
+    joint_vel_trajectory[-1] = (joint_pos_trajectory[-1] - joint_pos_trajectory[-2]) / timestep
 
-        # Central difference for the rest
-        joint_vel_trajectory[1:-1] = (joint_pos_trajectory[2:] - joint_pos_trajectory[:-2]) / (2 * timestep)
+    # Central difference for the rest
+    joint_vel_trajectory[1:-1] = (joint_pos_trajectory[2:] - joint_pos_trajectory[:-2]) / (2 * timestep)
 
-        return joint_vel_trajectory
+    return joint_vel_trajectory
 
 @hydra.main(config_path="../config", config_name="path_follower")
 def main(cfg):
@@ -168,7 +143,7 @@ def main(cfg):
     timestep = T / num_steps
 
     # Reset
-    robot.go_home(time_to_go=10.0)
+    robot.go_home(time_to_go=T)
 
     # Get robot model configuration
     robot_model_cfg = cfg.robot_model
@@ -197,49 +172,56 @@ def main(cfg):
     if planner_type == "trajopt":
         max_iter = cfg.planner.max_iter
         n_waypoints = cfg.planner.n_waypoints
+        # Initialize trajectory planner
+        traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment)
     else:
         raise Exception(f'\nPlanner {planner_type} not implemented.\n')
 
+    # Plan trajectory
+    traj = traj_planner.replan(feat_weights, T, timestep)   # returns Trajectory(waypts, waypts_time) object
+
+    joint_pos_trajectory = traj.waypts
+
+    # Calculate joint velocity trajectory
+    joint_vel_trajectory = compute_joint_velocities(joint_pos_trajectory, timestep)
+
+    # Convert the trajectory to torch.Tensor()
+    joint_pos_trajectory = to_tensor(joint_pos_trajectory)
+    joint_vel_trajectory = to_tensor(joint_vel_trajectory)
+
     # Move the robot to start
-    start_tensor = to_tensor(start)
-    print(f"\nMoving joints to start: {start_tensor} ...\n")
-    state_log = robot.move_to_joint_positions(positions=start_tensor, time_to_go=10.0)
+    start = to_tensor(start)
+    print(f"\nMoving joints to start: {start} ...\n")
+    state_log = robot.move_to_joint_positions(positions=start, time_to_go=T)
 
     # Create path follower policy
     policy = PathFollower(
-        n_waypoints=n_waypoints,
-        start=start,
-        goal=goal,
-        goal_pose=goal_pose,
-        feat_list=feat_list,
-        feat_weights=feat_weights,
-        max_iter=max_iter,
-        environment=environment,
-        T=T,
-        timestep=timestep,
+        joint_pos_trajectory=joint_pos_trajectory,
+        joint_vel_trajectory=joint_vel_trajectory,
         Kq=default_kq,
         Kqd=default_kqd,
         Kx=default_kx,
         Kxd=default_kxd,
-        robot_model=robot_model
+        robot_model=robot_model,
     )
 
     # Run policy
     print("\nRunning path follower policy ...\n")
-    state_log = robot.send_torch_policy(policy)
+    state_log = robot.send_torch_policy(policy, blocking=False)
 
-    # Get updated joint_positions
-    joint_positions = robot.get_joint_positions()
-    joint_velocities = robot.get_joint_velocities()
+    while robot.is_running_policy():
+        # Get updated joint_positions
+        joint_positions = robot.get_joint_positions()
+        joint_velocities = robot.get_joint_velocities()
 
-    print(f"\nNew joint positions: {joint_positions}\n")
-    print(f"\nNew joint velocities: {joint_velocities}\n")
+        print(f"\nNew joint positions: {joint_positions}\n")
+        print(f"\nNew joint velocities: {joint_velocities}\n")
 
-    ee_pos, ee_quat = robot.get_ee_pose()
-    print(f"\nNew end effector pose: {ee_pos}\n")
+        ee_pos, ee_quat = robot.get_ee_pose()
+        print(f"\nNew end effector pose: {ee_pos}\n")
 
-    [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
-    print(f"\nNew end effector pitch: {pitch}\n")
+        [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
+        print(f"\nNew end effector pitch: {pitch}\n")
 
 
 if __name__ == "__main__":
