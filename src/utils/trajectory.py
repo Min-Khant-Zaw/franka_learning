@@ -1,6 +1,8 @@
 import numpy as np
 import copy
 
+import time
+
 class Trajectory(object):
 	"""
 	This class represents a trajectory object, supporting operations such as
@@ -131,6 +133,6 @@ class Trajectory(object):
 			return Trajectory(waypts_deform, self.waypts_time)
 
 		for joint in range(7):
-			gamma[:,joint] = alpha*np.dot(H, u_h[joint])
+			gamma[:,joint] = alpha*np.dot(H, u_h[joint]).flatten()
 		waypts_deform[deform_waypt_idx : n + deform_waypt_idx, :] += gamma
 		return Trajectory(waypts_deform, self.waypts_time)

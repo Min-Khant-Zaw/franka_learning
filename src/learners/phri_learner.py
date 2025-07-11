@@ -34,7 +34,7 @@ class PHRILearner(object):
 		self.feat_range = [FEAT_RANGE[self.feat_list[feat]] for feat in range(self.num_features)]
 		self.P_beta = constants["P_beta"]
 
-	def learn_weights(self, traj, u_h: torch.Tensor, t):
+	def learn_weights(self, traj, u_h, t):
 		"""
 		Deforms the trajectory given human force, u_h, and
 		updates features by computing difference between 
@@ -50,7 +50,6 @@ class PHRILearner(object):
 			weights [list] -- Learned weights.
 		"""
 		self.traj = traj
-		u_h = u_h.numpy().reshape((7, 1))
 		self.traj_deform = traj.deform(u_h, t, self.alpha, self.n)
 
 		new_features = self.environment.featurize(self.traj_deform.waypts, self.feat_list)
