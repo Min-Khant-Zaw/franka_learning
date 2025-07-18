@@ -223,6 +223,8 @@ def main(cfg):
         [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
         print(f"\nNew end effector pitch: {pitch}\n")
 
+        robot_state = robot.get_robot_state()
+        print(f"\nCurrent robot state: {robot_state}\n")
 
 if __name__ == "__main__":
     main()
