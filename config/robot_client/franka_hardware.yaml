@@ -1,6 +1,7 @@
 hz: 1000
 use_real_time: true
 exec: franka_panda_client
+gui: false
 
 robot_client:
   _target_: polymetis.robot_client.executable_robot_client.ExecutableRobotClient
