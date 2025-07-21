@@ -1,15 +1,15 @@
 defaults:
   - robot_model: franka_panda
-  - robot_client: franka_sim
 
 setup:
   object_centers: {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
   feat_list: ["efficiency", "table", "coffee"]
-  feat_weights: [1.0,0.0,1.0]
+  feat_weights: [1.0, 0.0, 1.0]
   start: [-0.1515, -0.2002, -0.0195, -2.2691,  0.4506,  2.7031, -1.9165]
-  goal: [1.8973, 0.7628, 1.8973, -0.0658, 1.8973, 1.7525, 1.8973]
-  goal_pose: [-0.46513, 0.29041, 0.69497]
-  T: 10.0
+  # goal: [1.8973, 0.7628, 1.8973, -0.0658, 1.8973, 1.7525, 1.8973]
+  goal: [0.24, 0.12, 0.05, -1.57, 1.05, 1.50, -0.91]
+  # goal_pose: [-0.46513, 0.29041, 0.69497]
+  T: 60.0
 
 planner:
   type: "trajopt"

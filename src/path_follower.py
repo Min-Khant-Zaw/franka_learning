@@ -138,7 +138,7 @@ def main(cfg):
     # ----- General Setup ----- #
     start = np.array(cfg.setup.start)
     goal = np.array(cfg.setup.goal)
-    goal_pose = np.array(cfg.setup.goal_pose)
+    # goal_pose = np.array(cfg.setup.goal_pose)
     feat_list = cfg.setup.feat_list
     feat_weights = cfg.setup.feat_weights
     object_centers = cfg.setup.object_centers
@@ -180,7 +180,7 @@ def main(cfg):
         max_iter = cfg.planner.max_iter
         n_waypoints = cfg.planner.n_waypoints
         # Initialize trajectory planner
-        traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment)
+        traj_planner = TrajOpt(n_waypoints, start, goal, feat_list, feat_weights, max_iter, environment)
     else:
         raise Exception(f'\nPlanner {planner_type} not implemented.\n')
 
@@ -236,8 +236,11 @@ def main(cfg):
         [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
         print(f"\nNew end effector pitch: {pitch}\n")
 
-        robot_state = robot.get_robot_state()
-        print(f"\nCurrent robot state: {robot_state}\n")
+        # robot_state = robot.get_robot_state()
+        # print(f"\nCurrent robot state: {robot_state}\n")
+
+        external_torques = robot.get_robot_state().motor_torques_external
+        print(f"\nExternal torques: {external_torques}\n")
 
 if __name__ == "__main__":
     main()
