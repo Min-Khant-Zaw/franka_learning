@@ -25,6 +25,8 @@ class PathFollower(toco.PolicyModule):
             Kqd,
             Kx,
             Kxd,
+            goal_joint_position,
+            position_threshold,
             robot_model: torch.nn.Module,
             ignore_gravity=True
     ):
@@ -47,6 +49,8 @@ class PathFollower(toco.PolicyModule):
 
         self.joint_pos_trajectory = to_tensor(stack_trajectory(joint_pos_trajectory))
         self.joint_vel_trajectory = to_tensor(stack_trajectory(joint_vel_trajectory))
+        
+        self.goal_joint_position = goal_joint_position
 
         # Get the number of waypoints
         self.N = self.joint_pos_trajectory.shape[0]
@@ -142,6 +146,9 @@ def main(cfg):
     num_steps = int(T * hz)
     timestep = T / num_steps
 
+    # ----- Controller Setup ----- #
+    epsilon = cfg.controller.epsilon
+
     # Reset
     robot.go_home(time_to_go=T)
 
@@ -189,6 +196,10 @@ def main(cfg):
     joint_pos_trajectory = to_tensor(joint_pos_trajectory)
     joint_vel_trajectory = to_tensor(joint_vel_trajectory)
 
+    goal_joint_position = joint_pos_trajectory[-1, :]
+
+    print(f"\nGoal joint position: {goal_joint_position}\n")
+
     # Move the robot to start
     start = to_tensor(start)
     print(f"\nMoving joints to start: {start} ...\n")
@@ -202,7 +213,9 @@ def main(cfg):
         Kqd=default_kqd,
         Kx=default_kx,
         Kxd=default_kxd,
-        robot_model=robot_model,
+        goal_joint_position=goal_joint_position,
+        position_threshold=epsilon,
+        robot_model=robot_model
     )
 
     # Run policy
