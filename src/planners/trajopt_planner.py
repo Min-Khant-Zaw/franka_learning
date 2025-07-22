@@ -6,7 +6,7 @@ from scipy.optimize import LinearConstraint, NonlinearConstraint
 from utils.trajectory import Trajectory
 
 class TrajOpt(object):
-    def __init__(self, n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment, traj_seed=None):
+    def __init__(self, n_waypoints, start, goal, feat_list, feat_weights, max_iter, environment, goal_pose=None, traj_seed=None):
         # Set hyperparameters
         self.n_joints = len(start)
         self.start = start
@@ -41,8 +41,11 @@ class TrajOpt(object):
 
         # Create goal pose constraint if given
         if self.goal_pose is not None:
-            self.goal_xyz = np.array(self.goal_pose)
-            self.goal_constraint = NonlinearConstraint(self.goal_pose_constraint, lb=self.goal_xyz, ub=self.goal_xyz)
+            self.goal_pose_target = np.append(self.goal_pose, [0.0, 0.0, 0.0, 1.0])  # [x, y, z, w] quat
+            print(f"Goal pose constraint: {self.goal_pose_target}")
+            # time.sleep(5.0)
+            self.goal_constraint = NonlinearConstraint(self.goal_pose_constraint, lb=self.goal_pose_target - 0.01, ub=self.goal_pose_target + 0.01)
+        # Create goal point equality constraint if goal_pose is None
         else:
             self.B_goal = np.zeros((self.n_joints, self.n_joints * self.n_waypoints))
             for idx in range(self.n_joints):
@@ -50,7 +53,7 @@ class TrajOpt(object):
             self.goal_constraint = LinearConstraint(self.B_goal, self.goal, self.goal)
 
         # Create table constraint
-        self.table_constraint = NonlinearConstraint(self.table_constraint_batch, 0, np.inf)
+        self.table_constraint = NonlinearConstraint(self.table_constraint_batch, 1, np.inf)
 
     # Constraint functions
     def table_constraint_batch(self, xi: np.ndarray):
@@ -68,8 +71,12 @@ class TrajOpt(object):
         """
         xi = xi.reshape((self.n_waypoints, self.n_joints))
         last_waypt = xi[-1].tolist()
-        ee_position, _ = self.environment.compute_forward_kinematics(last_waypt)
-        return ee_position
+        ee_position, ee_orient_quaternion = self.environment.compute_forward_kinematics(last_waypt)
+        # print(f"[DEBUG] EE position at final waypoint: {ee_position}")
+        # print(f"[DEBUG] EE orientation at final waypoint: {ee_orient_quaternion}")
+        print(f"[DEBUG] EE pose at final waypoint: {np.append(ee_position, ee_orient_quaternion)}")
+        # time.sleep(1)
+        return np.append(ee_position, ee_orient_quaternion)
 
     # Cost functions
     def efficiency_cost(self, waypt):
@@ -163,14 +170,23 @@ class TrajOpt(object):
     # Use scipy optimizer to get optimal trajectory
     def optimize(self, method='SLSQP'):
         start_t = time.time()
+        print(f"[DEBUG] Pose constraint is active: {self.goal_constraint}")
+        # time.sleep(5)
+        print("[DEBUG] Goal constraint lower bound:", self.goal_constraint.lb)
+        print("[DEBUG] Goal constraint upper bound:", self.goal_constraint.ub)
         res = minimize(
             self.trajcost, 
             self.xi0, 
             method=method, 
-            constraints=[self.start_constraint, self.table_constraint, self.goal_constraint],
+            constraints=[self.start_constraint, self.table_constraint],
             options={'maxiter': self.MAX_ITER}
         )
+        print(f"[DEBUG] Optimization success: {res.success}, message: {res.message}")
+        # time.sleep(10)
+        print(f"res.x: {res.x}\n")
+        # time.sleep(5)
         xi = res.x.reshape(self.n_waypoints, self.n_joints)
+        print(f"xi: {xi}\n")
         return xi, res, time.time() - start_t
     
     def replan(self, weights, T, timestep):

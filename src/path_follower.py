@@ -10,6 +10,7 @@ from polymetis import RobotInterface
 from polymetis.utils.data_dir import get_full_path_to_urdf
 
 import hydra
+import time
 
 from planners.trajopt_planner import TrajOpt
 from utils.environment import Environment
@@ -138,7 +139,7 @@ def main(cfg):
     # ----- General Setup ----- #
     start = np.array(cfg.setup.start)
     goal = np.array(cfg.setup.goal)
-    # goal_pose = np.array(cfg.setup.goal_pose)
+    goal_pose = np.array(cfg.setup.goal_pose)
     feat_list = cfg.setup.feat_list
     feat_weights = cfg.setup.feat_weights
     object_centers = cfg.setup.object_centers
@@ -170,9 +171,24 @@ def main(cfg):
     environment = Environment(
         robot_model_cfg=robot_model_cfg,
         object_centers=object_centers,
-        gui=False
+        gui=False,
+        robot_model=robot_model
     )
 
+    print(f"\nGoal: {goal}\n")
+    print(f"\nGoal_pose: {goal_pose}\n")
+
+    goal_pose_xyz = to_tensor(goal_pose)
+    goal_pose_quat = to_tensor([0.0, 0.0, 0.0, 1.0])
+    calculated_goal = environment.compute_inverse_kinematics(goal_pose_xyz, goal_pose_quat)
+    print(f"\nCalculated goal: {calculated_goal}\n")
+
+    calculated_goal_pose = environment.compute_forward_kinematics(goal)
+    print(f"\nCalculated goal pose: {calculated_goal_pose}\n")
+
+    time.sleep(5)
+
+    goal = calculated_goal
     # ----- Planner Setup ----- #
     # Retrieve the planner specific parameters
     planner_type = cfg.planner.type
@@ -180,7 +196,7 @@ def main(cfg):
         max_iter = cfg.planner.max_iter
         n_waypoints = cfg.planner.n_waypoints
         # Initialize trajectory planner
-        traj_planner = TrajOpt(n_waypoints, start, goal, feat_list, feat_weights, max_iter, environment)
+        traj_planner = TrajOpt(n_waypoints, start, goal, feat_list, feat_weights, max_iter, environment, goal_pose=None)
     else:
         raise Exception(f'\nPlanner {planner_type} not implemented.\n')
 
@@ -220,27 +236,40 @@ def main(cfg):
 
     # Run policy
     print("\nRunning path follower policy ...\n")
-    state_log = robot.send_torch_policy(policy, blocking=False)
+    state_log = robot.send_torch_policy(policy, blocking=True)
 
-    while robot.is_running_policy():
-        # Get updated joint_positions
-        joint_positions = robot.get_joint_positions()
-        joint_velocities = robot.get_joint_velocities()
+    joint_positions = robot.get_joint_positions()
+    joint_velocities = robot.get_joint_velocities()
 
-        print(f"\nNew joint positions: {joint_positions}\n")
-        print(f"\nNew joint velocities: {joint_velocities}\n")
+    print(f"\nNew joint positions: {joint_positions}\n")
+    print(f"\nNew joint velocities: {joint_velocities}\n")
 
-        ee_pos, ee_quat = robot.get_ee_pose()
-        print(f"\nNew end effector pose: {ee_pos}\n")
+    ee_pos, ee_quat = robot.get_ee_pose()
+    print(f"\nNew end effector position: {ee_pos}\n")
+    print(f"\nNew end effector orientation in quaternion: {ee_quat}\n")
 
-        [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
-        print(f"\nNew end effector pitch: {pitch}\n")
+    [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
+    print(f"\nNew end effector pitch: {pitch}\n")
 
-        # robot_state = robot.get_robot_state()
-        # print(f"\nCurrent robot state: {robot_state}\n")
+    # while robot.is_running_policy():
+    #     # Get updated joint_positions
+    #     joint_positions = robot.get_joint_positions()
+    #     joint_velocities = robot.get_joint_velocities()
 
-        external_torques = robot.get_robot_state().motor_torques_external
-        print(f"\nExternal torques: {external_torques}\n")
+    #     print(f"\nNew joint positions: {joint_positions}\n")
+    #     print(f"\nNew joint velocities: {joint_velocities}\n")
+
+    #     ee_pos, ee_quat = robot.get_ee_pose()
+    #     print(f"\nNew end effector pose: {ee_pos}\n")
+
+    #     [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
+    #     print(f"\nNew end effector pitch: {pitch}\n")
+
+    #     # robot_state = robot.get_robot_state()
+    #     # print(f"\nCurrent robot state: {robot_state}\n")
+
+    #     external_torques = robot.get_robot_state().motor_torques_external
+    #     print(f"\nExternal torques: {external_torques}\n")
 
 if __name__ == "__main__":
     main()
