@@ -11,7 +11,10 @@ import atexit
 import sys
 import signal
 
+import torchcontrol as toco
+
 from polymetis.utils.grpc_utils import check_server_exists
+from polymetis.utils.data_dir import get_full_path_to_urdf
 from polymetis.utils.data_dir import BUILD_DIR, which
 
 log = logging.getLogger(__name__)
@@ -70,9 +73,19 @@ def main(cfg):
 
     # Connect simulation client to the server
     robot_model_cfg = cfg.robot_model
+
+    robot_description_path = get_full_path_to_urdf(
+            robot_model_cfg.robot_description_path
+        )
+
+    robot_model = toco.models.RobotModelPinocchio(
+        urdf_filename=robot_description_path,
+        ee_link_name=robot_model_cfg.ee_link_name
+    )
+
     gui = cfg.gui
     use_grav_comp = cfg.use_grav_comp
-    env = Environment(robot_model_cfg=robot_model_cfg, object_centers=object_centers, gui=gui, use_grav_comp=use_grav_comp)
+    env = Environment(robot_model_cfg=robot_model_cfg, object_centers=object_centers, robot_model=robot_model, gui=gui, use_grav_comp=use_grav_comp)
     metadata_cfg = cfg.robot_client.metadata_cfg
 
     sim = GrpcSimulationClient(

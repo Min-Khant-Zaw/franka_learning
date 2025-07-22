@@ -163,6 +163,7 @@ def main(cfg):
     environment = Environment(
         robot_model_cfg=robot_model_cfg,
         object_centers=object_centers,
+        robot_model=robot_model,
         gui=False
     )
 
@@ -173,7 +174,7 @@ def main(cfg):
         max_iter = cfg.planner.max_iter
         n_waypoints = cfg.planner.n_waypoints
         # Initialize trajectory planner
-        traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment)
+        traj_planner = TrajOpt(n_waypoints, start, goal, feat_list, feat_weights, max_iter, environment, goal_pose)
     else:
         raise Exception(f'\nPlanner {planner_type} not implemented.\n')
 
@@ -207,24 +208,42 @@ def main(cfg):
 
     # Run policy
     print("\nRunning path follower policy ...\n")
-    state_log = robot.send_torch_policy(policy, blocking=False)
+    state_log = robot.send_torch_policy(policy, blocking=True)
+    # goal = to_tensor(goal)
+    # state_log = robot.move_to_joint_positions(positions=goal, time_to_go=T)
 
-    while robot.is_running_policy():
-        # Get updated joint_positions
-        joint_positions = robot.get_joint_positions()
-        joint_velocities = robot.get_joint_velocities()
+    # Get updated joint_positions
+    joint_positions = robot.get_joint_positions()
+    joint_velocities = robot.get_joint_velocities()
 
-        print(f"\nNew joint positions: {joint_positions}\n")
-        print(f"\nNew joint velocities: {joint_velocities}\n")
+    print(f"\nNew joint positions: {joint_positions}\n")
+    print(f"\nNew joint velocities: {joint_velocities}\n")
 
-        ee_pos, ee_quat = robot.get_ee_pose()
-        print(f"\nNew end effector pose: {ee_pos}\n")
+    ee_pos, ee_quat = robot.get_ee_pose()
+    print(f"\nNew end effector pose: {ee_pos}\n")
 
-        [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
-        print(f"\nNew end effector pitch: {pitch}\n")
+    [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
+    print(f"\nNew end effector pitch: {pitch}\n")
 
-        robot_state = robot.get_robot_state()
-        print(f"\nCurrent robot state: {robot_state}\n")
+    robot_state = robot.get_robot_state()
+    print(f"\nCurrent robot state: {robot_state}\n")
+
+    # while robot.is_running_policy():
+    #     # Get updated joint_positions
+    #     joint_positions = robot.get_joint_positions()
+    #     joint_velocities = robot.get_joint_velocities()
+
+    #     print(f"\nNew joint positions: {joint_positions}\n")
+    #     print(f"\nNew joint velocities: {joint_velocities}\n")
+
+    #     ee_pos, ee_quat = robot.get_ee_pose()
+    #     print(f"\nNew end effector pose: {ee_pos}\n")
+
+    #     [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
+    #     print(f"\nNew end effector pitch: {pitch}\n")
+
+    #     robot_state = robot.get_robot_state()
+    #     print(f"\nCurrent robot state: {robot_state}\n")
 
 if __name__ == "__main__":
     main()

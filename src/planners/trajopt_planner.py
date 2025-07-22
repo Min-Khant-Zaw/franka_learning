@@ -6,7 +6,7 @@ from scipy.optimize import LinearConstraint, NonlinearConstraint
 from utils.trajectory import Trajectory
 
 class TrajOpt(object):
-    def __init__(self, n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment, traj_seed=None):
+    def __init__(self, n_waypoints, start, goal, feat_list, feat_weights, max_iter, environment, goal_pose=None, traj_seed=None):
         # Set hyperparameters
         self.n_joints = len(start)
         self.start = start
@@ -21,6 +21,8 @@ class TrajOpt(object):
 
         # Set Pybullet environment
         self.environment = environment
+
+        self.iteration_count = 0
 
         # Create initial trajectory
         if traj_seed is None:
@@ -41,16 +43,18 @@ class TrajOpt(object):
 
         # Create goal pose constraint if given
         if self.goal_pose is not None:
+            print("Using goal pose as constraint.\n")
             self.goal_xyz = np.array(self.goal_pose)
             self.goal_constraint = NonlinearConstraint(self.goal_pose_constraint, lb=self.goal_xyz, ub=self.goal_xyz)
         else:
+            print("No goal pose given. Using goal as constraint.\n")
             self.B_goal = np.zeros((self.n_joints, self.n_joints * self.n_waypoints))
             for idx in range(self.n_joints):
                 self.B_goal[idx, (self.n_waypoints - 1) * self.n_joints + idx] = 1
             self.goal_constraint = LinearConstraint(self.B_goal, self.goal, self.goal)
 
         # Create table constraint
-        self.table_constraint = NonlinearConstraint(self.table_constraint_batch, 0, np.inf)
+        self.table_constraint = NonlinearConstraint(self.table_constraint_batch, 1, np.inf)
 
     # Constraint functions
     def table_constraint_batch(self, xi: np.ndarray):
@@ -159,17 +163,28 @@ class TrajOpt(object):
                 cost_total += self.efficiency_cost(np.concatenate((xi[idx - 1], xi[idx])))
 
         return cost_total
+    
+    # Print cost at each iteration for debugging
+    def trajcost_logging(self, xi: np.ndarray):
+        cost = self.trajcost(xi)
+        print(f"[COST] Iteration {self.iteration_count}: {cost}")
+        self.iteration_count += 1
+        return cost
 
     # Use scipy optimizer to get optimal trajectory
     def optimize(self, method='SLSQP'):
         start_t = time.time()
+        print(f"[DEBUG] Pose constraint is active: {self.goal_constraint}")
+        print("[DEBUG] Goal constraint lower bound:", self.goal_constraint.lb)
+        print("[DEBUG] Goal constraint upper bound:", self.goal_constraint.ub)
         res = minimize(
-            self.trajcost, 
+            self.trajcost_logging, 
             self.xi0, 
             method=method, 
             constraints=[self.start_constraint, self.table_constraint, self.goal_constraint],
             options={'maxiter': self.MAX_ITER}
         )
+        print(f"[DEBUG] Optimization success: {res.success}, message: {res.message}")
         xi = res.x.reshape(self.n_waypoints, self.n_joints)
         return xi, res, time.time() - start_t
     
