@@ -365,15 +365,6 @@ class Environment(AbstractControlledEnv):
             target_position = target_position.tolist()
         if isinstance(target_orientation, np.ndarray):
             target_orientation = target_orientation.tolist()
-<<<<<<< HEAD
-        
-        link_pos = to_tensor(target_position)
-        link_quat = to_tensor(target_orientation)
-
-        desired_joint_pos = self.robot_model.inverse_kinematics(link_pos, link_quat).numpy()
-
-        return desired_joint_pos
-=======
         # ik_kwargs = dict(
         #     bodyUniqueId=self.robot_id,
         #     endEffectorLinkIndex=self.ee_link_idx,
@@ -394,7 +385,6 @@ class Environment(AbstractControlledEnv):
             jointDamping=self.joint_damping.tolist()if self.joint_damping is not None else None
         )
         return np.array(desired_joint_pos)
->>>>>>> 5af6410... Trajopt planner working again without goal pose constraint
     
     def compute_inverse_dynamics(
         self, joint_pos: np.ndarray, joint_vel: np.ndarray, joint_acc: np.ndarray
