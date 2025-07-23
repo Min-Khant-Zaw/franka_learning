@@ -299,12 +299,18 @@ class Environment(AbstractControlledEnv):
             np.ndarray: 4-dimensional end-effector orientation as quaternion
 
         """
-        joint_positions = to_tensor(joint_pos)
-
-        result = self.robot_model.forward_kinematics(joint_positions)
-
-        ee_position = result[0].numpy()
-        ee_orient_quaternion = result[1].numpy()
+        if joint_pos != None:
+            # log.warning(
+            #     "Resetting PyBullet simulation to given joint_pos to compute forward kinematics!"
+            # )
+            self.reset(joint_pos)
+        link_state = self.sim.getLinkState(
+            self.robot_id,
+            self.ee_link_idx,
+            computeForwardKinematics=True,
+        )
+        ee_position = np.array(link_state[4])
+        ee_orient_quaternion = np.array(link_state[5])
 
         return ee_position, ee_orient_quaternion
     
@@ -359,6 +365,7 @@ class Environment(AbstractControlledEnv):
             target_position = target_position.tolist()
         if isinstance(target_orientation, np.ndarray):
             target_orientation = target_orientation.tolist()
+<<<<<<< HEAD
         
         link_pos = to_tensor(target_position)
         link_quat = to_tensor(target_orientation)
@@ -366,6 +373,28 @@ class Environment(AbstractControlledEnv):
         desired_joint_pos = self.robot_model.inverse_kinematics(link_pos, link_quat).numpy()
 
         return desired_joint_pos
+=======
+        # ik_kwargs = dict(
+        #     bodyUniqueId=self.robot_id,
+        #     endEffectorLinkIndex=self.ee_link_idx,
+        #     targetPosition=target_position,
+        #     targetOrientation=target_orientation,
+        #     upperLimits=self.joint_limits_high.tolist(),
+        #     lowerLimits=self.joint_limits_low.tolist(),
+        # )
+        # if self.joint_damping is not None:
+        #     ik_kwargs["joint_damping"] = self.joint_damping.tolist()
+        desired_joint_pos = self.sim.calculateInverseKinematics(
+            bodyUniqueId=self.robot_id,
+            endEffectorLinkIndex=self.ee_link_idx,
+            targetPosition=target_position,
+            targetOrientation=target_orientation,
+            upperLimits=self.joint_limits_high.tolist(),
+            lowerLimits=self.joint_limits_low.tolist(),
+            jointDamping=self.joint_damping.tolist()if self.joint_damping is not None else None
+        )
+        return np.array(desired_joint_pos)
+>>>>>>> 5af6410... Trajopt planner working again without goal pose constraint
     
     def compute_inverse_dynamics(
         self, joint_pos: np.ndarray, joint_vel: np.ndarray, joint_acc: np.ndarray

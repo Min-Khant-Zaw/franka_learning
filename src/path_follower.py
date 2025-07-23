@@ -169,6 +169,12 @@ def main(cfg):
         gui=False
     )
 
+    calculated_goal_pose = environment.compute_forward_kinematics(goal.tolist())
+    print(f"Calculated goal pose: {calculated_goal_pose}")
+
+    calculated_goal = environment.compute_inverse_kinematics(goal_pose)
+    print(f"Calculated goal: {calculated_goal}\n")
+
     # ----- Planner Setup ----- #
     # Retrieve the planner specific parameters
     planner_type = cfg.planner.type
@@ -219,8 +225,6 @@ def main(cfg):
     # Run policy
     print("\nRunning path follower policy ...\n")
     state_log = robot.send_torch_policy(policy, blocking=True)
-    # goal = to_tensor(goal)
-    # state_log = robot.move_to_joint_positions(positions=goal, time_to_go=T)
 
     # Get updated joint_positions
     joint_positions = robot.get_joint_positions()
@@ -230,7 +234,8 @@ def main(cfg):
     print(f"\nNew joint velocities: {joint_velocities}\n")
 
     ee_pos, ee_quat = robot.get_ee_pose()
-    print(f"\nNew end effector pose: {ee_pos}\n")
+    print(f"\nNew end effector position: {ee_pos}\n")
+    print(f"\nNew end effecotr orientation: {ee_quat}\n")
 
     [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
     print(f"\nNew end effector pitch: {pitch}\n")
@@ -247,7 +252,7 @@ def main(cfg):
     #     print(f"\nNew joint velocities: {joint_velocities}\n")
 
     #     ee_pos, ee_quat = robot.get_ee_pose()
-    #     print(f"\nNew end effector pose: {ee_pos}\n")
+    #     print(f"\nNew end effector position: {ee_pos}\n")
 
     #     [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
     #     print(f"\nNew end effector pitch: {pitch}\n")

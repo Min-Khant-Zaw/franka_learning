@@ -42,12 +42,13 @@ class TrajOpt(object):
         self.start_constraint = LinearConstraint(self.B, self.start, self.start)
 
         # Create goal pose constraint if given
+        tol = 0.10
         if self.goal_pose is not None:
-            print("Using goal pose as constraint.\n")
+            print("Using goal pose as constraint.")
             self.goal_xyz = np.array(self.goal_pose)
             self.goal_constraint = NonlinearConstraint(self.goal_pose_constraint, lb=self.goal_xyz, ub=self.goal_xyz)
         else:
-            print("No goal pose given. Using goal as constraint.\n")
+            print("No goal pose given. Using goal as constraint.")
             self.B_goal = np.zeros((self.n_joints, self.n_joints * self.n_waypoints))
             for idx in range(self.n_joints):
                 self.B_goal[idx, (self.n_waypoints - 1) * self.n_joints + idx] = 1
