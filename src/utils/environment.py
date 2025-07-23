@@ -254,41 +254,13 @@ class Environment(AbstractControlledEnv):
 
         return applied_torques
     
-    # def compute_forward_kinematics(self, joint_pos: List[float] = None):
-    #     """
-    #     Computes forward kinematics.
-
-    #     Warning:
-    #         Uses PyBullet forward kinematics by resetting to the given joint position (or, if not given,
-    #         the rest position). Therefore, drastically modifies simulation state!
-
-    #     Args:
-    #         joint_pos: Joint positions for which to compute forward kinematics.
-
-    #     Returns:
-    #         np.ndarray: 3-dimensional end-effector position
-
-    #         np.ndarray: 4-dimensional end-effector orientation as quaternion
-
-    #     """
-    #     if joint_pos != None:
-    #         # log.warning(
-    #         #     "Resetting PyBullet simulation to given joint_pos to compute forward kinematics!"
-    #         # )
-    #         self.reset(joint_pos)
-    #     link_state = self.sim.getLinkState(
-    #         self.robot_id,
-    #         self.ee_link_idx,
-    #         computeForwardKinematics=True,
-    #     )
-    #     ee_position = np.array(link_state[4])
-    #     ee_orient_quaternion = np.array(link_state[5])
-
-    #     return ee_position, ee_orient_quaternion
-
-    def compute_forward_kinematics(self, joint_pos: List[float]):
+    def compute_forward_kinematics(self, joint_pos: List[float] = None):
         """
         Computes forward kinematics.
+
+        Warning:
+            Uses PyBullet forward kinematics by resetting to the given joint position (or, if not given,
+            the rest position). Therefore, drastically modifies simulation state!
 
         Args:
             joint_pos: Joint positions for which to compute forward kinematics.
@@ -313,42 +285,9 @@ class Environment(AbstractControlledEnv):
         ee_orient_quaternion = np.array(link_state[5])
 
         return ee_position, ee_orient_quaternion
-    
-    # def compute_inverse_kinematics(
-    #     self, target_position: List[float], target_orientation: List[float] = None
-    # ):
-    #     """
-    #     Computes inverse kinematics.
-
-    #     Uses PyBullet to compute inverse kinematics.
-
-    #     Args:
-    #         target_position: 3-dimensional desired end-effector position.
-    #         target_orientation: 4-dimensional desired end-effector orientation as quaternion.
-
-    #     Returns:
-    #         np.ndarray: Joint position satisfying the given target end-effector position/orientation.
-
-    #     """
-    #     if isinstance(target_position, np.ndarray):
-    #         target_position = target_position.tolist()
-    #     if isinstance(target_orientation, np.ndarray):
-    #         target_orientation = target_orientation.tolist()
-    #     ik_kwargs = dict(
-    #         bodyUniqueId=self.robot_id,
-    #         endEffectorLinkIndex=self.ee_link_idx,
-    #         targetPosition=target_position,
-    #         targetOrientation=target_orientation,
-    #         upperLimits=self.joint_limits_high.tolist(),
-    #         lowerLimits=self.joint_limits_low.tolist(),
-    #     )
-    #     if self.joint_damping is not None:
-    #         ik_kwargs["joint_damping"] = self.joint_damping.tolist()
-    #     desired_joint_pos = self.sim.calculateInverseKinematics(**ik_kwargs)
-    #     return np.array(desired_joint_pos)
 
     def compute_inverse_kinematics(
-        self, target_position: List[float], target_orientation: List[float]
+        self, target_position: List[float], target_orientation: List[float]=None
     ):
         """
         Computes inverse kinematics.
