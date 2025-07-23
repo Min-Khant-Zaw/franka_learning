@@ -16,3 +16,6 @@ planner:
   type: "trajopt"
   max_iter: 50
   n_waypoints: 5
+
+controller:
+  epsilon: 0.01

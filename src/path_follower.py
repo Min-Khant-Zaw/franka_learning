@@ -25,6 +25,8 @@ class PathFollower(toco.PolicyModule):
             Kqd,
             Kx,
             Kxd,
+            goal_joint_position,
+            position_threshold,
             robot_model: torch.nn.Module,
             ignore_gravity=True
     ):
@@ -174,7 +176,7 @@ def main(cfg):
         max_iter = cfg.planner.max_iter
         n_waypoints = cfg.planner.n_waypoints
         # Initialize trajectory planner
-        traj_planner = TrajOpt(n_waypoints, start, goal, feat_list, feat_weights, max_iter, environment, goal_pose)
+        traj_planner = TrajOpt(n_waypoints, start, goal, feat_list, feat_weights, max_iter, environment)
     else:
         raise Exception(f'\nPlanner {planner_type} not implemented.\n')
 
@@ -190,6 +192,12 @@ def main(cfg):
     joint_pos_trajectory = to_tensor(joint_pos_trajectory)
     joint_vel_trajectory = to_tensor(joint_vel_trajectory)
 
+    goal_joint_position = joint_pos_trajectory[-1, :]
+    print(f"Goal joint position: {goal_joint_position}\n")
+
+    # ----- Controller Setup ----- #
+    epsilon = cfg.controller.epsilon
+
     # Move the robot to start
     start = to_tensor(start)
     print(f"\nMoving joints to start: {start} ...\n")
@@ -203,6 +211,8 @@ def main(cfg):
         Kqd=default_kqd,
         Kx=default_kx,
         Kxd=default_kxd,
+        goal_joint_position=goal_joint_position,
+        position_threshold=epsilon,
         robot_model=robot_model,
     )
 
