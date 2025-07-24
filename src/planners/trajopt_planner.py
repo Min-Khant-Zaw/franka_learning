@@ -64,7 +64,7 @@ class TrajOpt(object):
 		above the table by taking the trajectory as the input.
 		"""
         xi = xi.reshape((self.n_waypoints, self.n_joints))
-        return np.array([self.environment.table_constraint(xi[t]) for t in range(1, self.n_waypoints - 1)])
+        return np.array([self.environment.table_constraint(xi[t]) for t in range(0, self.n_waypoints - 1)])
     
     def goal_pose_constraint(self, xi: np.ndarray):
         """
