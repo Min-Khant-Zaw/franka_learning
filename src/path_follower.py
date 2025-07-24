@@ -25,8 +25,8 @@ class PathFollower(toco.PolicyModule):
             Kqd,
             Kx,
             Kxd,
-            goal_joint_position,
-            position_threshold,
+            goal_joint_position: torch.Tensor,
+            epsilon,
             robot_model: torch.nn.Module,
             ignore_gravity=True
     ):
@@ -50,6 +50,9 @@ class PathFollower(toco.PolicyModule):
         self.joint_pos_trajectory = to_tensor(stack_trajectory(joint_pos_trajectory))
         self.joint_vel_trajectory = to_tensor(stack_trajectory(joint_vel_trajectory))
 
+        self.register_buffer("goal_joint_position", goal_joint_position.clone())
+        self.epsilon = epsilon
+
         # Get the number of waypoints
         self.N = self.joint_pos_trajectory.shape[0]
         assert self.joint_pos_trajectory.shape == self.joint_vel_trajectory.shape
@@ -69,6 +72,9 @@ class PathFollower(toco.PolicyModule):
         joint_pos_current = state_dict["joint_positions"]
         joint_vel_current = state_dict["joint_velocities"]
 
+        print(f"Current joint positions: {joint_pos_current}")
+        print(f"Goal joint positions: {self.goal_joint_position}")
+
         # Query plan for desired state
         joint_pos_desired = self.joint_pos_trajectory[self.i, :]
         joint_vel_desired = self.joint_vel_trajectory[self.i, :]
@@ -87,8 +93,15 @@ class PathFollower(toco.PolicyModule):
         torque_output = torque_feedback + torque_feedforward
 
         # Increment and terminate if all waypoints have been executed
-        self.i += 1
-        if self.i == self.N:
+        # self.i += 1
+        # if self.i == self.N:
+        #     self.set_terminated()
+        self.i = min(self.i + 1, self.N - 1)
+        dist_from_goal = torch.abs(joint_pos_current - self.goal_joint_position)
+        print(f"[DEBUG] Distance from goal: {dist_from_goal}")
+        is_at_goal = bool(torch.all(dist_from_goal < self.epsilon))
+        print(f"[DEBUG] Comparison: {is_at_goal}\n")
+        if is_at_goal:
             self.set_terminated()
 
         return {"joint_torques": torque_output}
@@ -218,7 +231,7 @@ def main(cfg):
         Kx=default_kx,
         Kxd=default_kxd,
         goal_joint_position=goal_joint_position,
-        position_threshold=epsilon,
+        epsilon=epsilon,
         robot_model=robot_model,
     )
 

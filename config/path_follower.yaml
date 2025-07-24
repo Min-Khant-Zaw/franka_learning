@@ -18,4 +18,4 @@ planner:
   n_waypoints: 5
 
 controller:
-  epsilon: 0.01
+  epsilon: 0.07
