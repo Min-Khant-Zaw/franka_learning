@@ -86,9 +86,12 @@ class Environment(AbstractControlledEnv):
             raise Exception(f"Unknown robot definition extension {ext}!")
         
         # Add objects
-        addTable()
+        addTable(tablePos=[0.5, 0.0, 0.0])
+        addRobotStand(standPos=[0.5, 0.9, 0.0])
         if "HUMAN_CENTER" in self.object_centers:
             addHuman(self.object_centers)
+        if "LAPTOP_CENTER" in self.object_centers:
+            addLaptop(self.object_centers)
         
         # Debug utility to print out joint configuration information directly from the URDF/SDF
         if extract_config_from_rdf:
@@ -126,7 +129,8 @@ class Environment(AbstractControlledEnv):
         log.info("loading urdf file: {}".format(abs_urdf_path))
         robot_id = sim.loadURDF(
             abs_urdf_path,          # might have to change this (different from the urdf from pybullet_data)
-            basePosition=[0.0, 0.0, 0.6],
+            basePosition=[0.5, 0.75, 0.7],
+            baseOrientation=[0.0, 0.0, -0.707, 0.707],
             useFixedBase=True,
             flags=p.URDF_USE_INERTIA_FROM_FILE,
         )

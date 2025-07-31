@@ -71,7 +71,7 @@ def main(cfg):
     signal.signal(signal.SIGTERM, lambda signal_number, stack_frame: cleanup())
 
     # Get data for simulation environment
-    object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
+    object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [0.5, -0.1, 0.6]}
     robot_model_cfg = cfg.robot_model
 
     robot_description_path = get_full_path_to_urdf(
