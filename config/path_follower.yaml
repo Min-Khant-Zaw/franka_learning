@@ -3,9 +3,9 @@ defaults:
   - robot_client: franka_sim
 
 setup:
-  object_centers: {'HUMAN_CENTER': [-0.6, -0.55, 0.0]}
+  object_centers: {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
   feat_list: ["efficiency", "table", "coffee"]
-  feat_weights: [1.0, 0.0, 1.0]
+  feat_weights: [1.0, 0.0, 0.0]
   start: [-0.1515, -0.2002, -0.0195, -2.2691,  0.4506,  2.7031, -1.9165]
   # goal: [-0.1412,  0.9730,  0.4971, -1.7710,  1.5218,  2.0971, -1.9305] (potential start)
   # goal_pose: [-0.46513, 0.29041, 0.69497]
