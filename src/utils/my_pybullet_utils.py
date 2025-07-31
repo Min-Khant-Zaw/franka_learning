@@ -61,7 +61,7 @@ def addHuman(object_centers):
     humanOrientation = p.getQuaternionFromEuler([1.5, 0, 1.5])
     human_id = p.loadURDF("humanoid/humanoid.urdf", object_centers["HUMAN_CENTER"], humanOrientation, globalScaling=0.25, useFixedBase=True)
 
-def plotSphere(coords, radius=0.05, color=[0, 0, 1, 1]):
+def plotSphere(coords, radius=0.02, color=[0, 0, 1, 1]):
     """
 	Plots a single sphere in Pybullet centered at coords(x,y,z) location.
 	"""
@@ -77,10 +77,11 @@ def plotSphere(coords, radius=0.05, color=[0, 0, 1, 1]):
         baseVisualShapeIndex=visual_shape_id,
         basePosition=coords)
     
-def visualizeTraj(env, waypoints, radius=0.05, color=[0, 0, 1, 1]):
+def visualizeTraj(env, waypoints, radius=0.02, color=[0, 0, 1, 1]):
     """
 	Plots the trajectory found or planned.
 	"""
+    print("Visualizing trajectory.....\n")
     for waypoint in waypoints:
         waypoint = waypoint.tolist()
         ee_position, _ = env.compute_forward_kinematics(waypoint)

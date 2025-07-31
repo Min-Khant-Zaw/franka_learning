@@ -286,6 +286,28 @@ class Environment(AbstractControlledEnv):
 
         return ee_position, ee_orient_quaternion
 
+    # def compute_forward_kinematics(self, joint_pos: List[float]):
+    #     """
+    #     Computes forward kinematics.
+
+    #     Args:
+    #         joint_pos: Joint positions for which to compute forward kinematics.
+
+    #     Returns:
+    #         np.ndarray: 3-dimensional end-effector position
+
+    #         np.ndarray: 4-dimensional end-effector orientation as quaternion
+
+    #     """
+    #     joint_positions = to_tensor(joint_pos)
+
+    #     result = self.robot_model.forward_kinematics(joint_positions)
+
+    #     ee_position = result[0].numpy()
+    #     ee_orient_quaternion = result[1].numpy()
+
+    #     return ee_position, ee_orient_quaternion
+
     def compute_inverse_kinematics(
         self, target_position: List[float], target_orientation: List[float]=None
     ):
@@ -450,7 +472,7 @@ class Environment(AbstractControlledEnv):
         waypt = waypt.tolist()
         _, ee_orientation = self.compute_forward_kinematics(waypt)
         [roll, pitch, yaw] = euler_from_quaternion(ee_orientation)
-        return pitch
+        return abs(pitch)
 
     # Distance to laptop
     def laptop_features(self, waypt, prev_waypt):

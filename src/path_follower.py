@@ -13,6 +13,7 @@ import hydra
 
 from planners.trajopt_planner import TrajOpt
 from utils.environment import Environment
+from utils.my_pybullet_utils import *
 
 from tf.transformations import euler_from_quaternion
 
@@ -174,19 +175,19 @@ def main(cfg):
         ee_link_name=robot_model_cfg.ee_link_name
     )
 
-    # Create Pybullet environment
+    # Create Pybullet environment for trajectory planner
     environment = Environment(
         robot_model_cfg=robot_model_cfg,
         object_centers=object_centers,
         robot_model=robot_model,
-        gui=False
+        gui=True
     )
 
-    calculated_goal_pose = environment.compute_forward_kinematics(goal.tolist())
-    print(f"Calculated goal pose: {calculated_goal_pose}")
+    # calculated_goal_pose = environment.compute_forward_kinematics(goal.tolist())
+    # print(f"Calculated goal pose: {calculated_goal_pose}")
 
-    calculated_goal = environment.compute_inverse_kinematics(goal_pose)
-    print(f"Calculated goal: {calculated_goal}\n")
+    # calculated_goal = environment.compute_inverse_kinematics(goal_pose)
+    # print(f"Calculated goal: {calculated_goal}\n")
 
     # ----- Planner Setup ----- #
     # Retrieve the planner specific parameters
@@ -203,6 +204,9 @@ def main(cfg):
     traj = traj_planner.replan(feat_weights, T, timestep)   # returns Trajectory(waypts, waypts_time) object
 
     joint_pos_trajectory = traj.waypts
+
+    # Visualize trajectory
+    visualizeTraj(environment, joint_pos_trajectory, radius=0.02, color=[0, 0, 1, 1])
 
     # Calculate joint velocity trajectory
     joint_vel_trajectory = compute_joint_velocities(joint_pos_trajectory, timestep)
@@ -238,6 +242,7 @@ def main(cfg):
     # Run policy
     print("\nRunning path follower policy ...\n")
     state_log = robot.send_torch_policy(policy, blocking=True)
+    # state_log = robot.move_to_joint_positions(positions=goal, time_to_go=T)
 
     # Get updated joint_positions
     joint_positions = robot.get_joint_positions()
