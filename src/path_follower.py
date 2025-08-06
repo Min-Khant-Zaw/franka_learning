@@ -205,8 +205,16 @@ def main(cfg):
 
     joint_pos_trajectory = traj.waypts
 
+    print(f"Number of waypoints: {len(joint_pos_trajectory)}\n")
+
+    # Downsample trajectory for visualization
+    viz_traj = traj.downsample(2401)
+    viz_traj_waypts = viz_traj.waypts
+
+    print(f"Number of waypoints to visualize: {len(viz_traj_waypts)}")
+
     # Visualize trajectory
-    visualizeTraj(environment, joint_pos_trajectory, radius=0.02, color=[0, 0, 1, 1])
+    visualizeTraj(environment, viz_traj_waypts, radius=0.02, color=[0, 0, 1, 1])
 
     # Calculate joint velocity trajectory
     joint_vel_trajectory = compute_joint_velocities(joint_pos_trajectory, timestep)

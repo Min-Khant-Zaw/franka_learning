@@ -476,8 +476,8 @@ class Environment(AbstractControlledEnv):
         waypt = waypt.tolist()
         _, ee_orientation = self.compute_forward_kinematics(waypt)
         [roll, pitch, yaw] = euler_from_quaternion(ee_orientation)
-        return abs(pitch)
-
+        return (pitch - 0.71) + (roll - 1.60)
+    
     # Distance to laptop
     def laptop_features(self, waypt, prev_waypt):
         """
