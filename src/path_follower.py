@@ -73,8 +73,14 @@ class PathFollower(toco.PolicyModule):
         joint_pos_current = state_dict["joint_positions"]
         joint_vel_current = state_dict["joint_velocities"]
 
-        print(f"Current joint positions: {joint_pos_current}")
-        print(f"Goal joint positions: {self.goal_joint_position}")
+        # print(f"Current joint positions: {joint_pos_current}")
+        # print(f"Goal joint positions: {self.goal_joint_position}")
+
+        motor_torques = state_dict["motor_torques_measured"]
+        external_torques = state_dict["motor_torques_external"]
+
+        print(f"Motor_torques_measured: {motor_torques}")
+        print(f"Motor_torques_external: {external_torques}")
 
         # Query plan for desired state
         joint_pos_desired = self.joint_pos_trajectory[self.i, :]
@@ -99,7 +105,7 @@ class PathFollower(toco.PolicyModule):
         #     self.set_terminated()
         self.i = min(self.i + 1, self.N - 1)
         dist_from_goal = torch.abs(joint_pos_current - self.goal_joint_position)
-        print(f"[DEBUG] Distance from goal: {dist_from_goal}")
+        # print(f"[DEBUG] Distance from goal: {dist_from_goal}")
         is_at_goal = bool(torch.all(dist_from_goal < self.epsilon))
         print(f"[DEBUG] Comparison: {is_at_goal}\n")
         if is_at_goal:
@@ -137,7 +143,7 @@ def main(cfg):
 
     # Initialize robot interface
     robot = RobotInterface(
-        ip_address="localhost"
+        ip_address=cfg.ip
     )
 
     # Get robot metadata
@@ -208,7 +214,7 @@ def main(cfg):
     print(f"Number of waypoints: {len(joint_pos_trajectory)}\n")
 
     # Downsample trajectory for visualization
-    viz_traj = traj.downsample(2401)
+    viz_traj = traj.downsample(100)
     viz_traj_waypts = viz_traj.waypts
 
     print(f"Number of waypoints to visualize: {len(viz_traj_waypts)}")

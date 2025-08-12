@@ -183,7 +183,8 @@ class TrajOpt(object):
             self.xi0, 
             method=method, 
             constraints=[self.start_constraint, self.table_constraint, self.goal_constraint],
-            options={'maxiter': self.MAX_ITER}
+            tol=0.35,
+            options={'disp': True, 'maxiter': self.MAX_ITER}
         )
         print(f"[DEBUG] Optimization success: {res.success}, message: {res.message}")
         xi = res.x.reshape(self.n_waypoints, self.n_joints)
