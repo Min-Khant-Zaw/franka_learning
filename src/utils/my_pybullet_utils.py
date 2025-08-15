@@ -52,8 +52,7 @@ import numpy as np
 
 #     return objectID
 
-def addTable():
-    tablePos = [0.5, 0.0, 0.0]
+def addTable(tablePos):
     tableOrientation = p.getQuaternionFromEuler([0, 0, 0])
     table_id = p.loadURDF("table/table.urdf", tablePos, tableOrientation, useFixedBase=True)
 
@@ -61,7 +60,49 @@ def addHuman(object_centers):
     humanOrientation = p.getQuaternionFromEuler([1.5, 0, 1.5])
     human_id = p.loadURDF("humanoid/humanoid.urdf", object_centers["HUMAN_CENTER"], humanOrientation, globalScaling=0.25, useFixedBase=True)
 
-def plotSphere(coords, radius=0.05, color=[0, 0, 1, 1]):
+def addRobotStand(standPos):
+    collision_shape_id = p.createCollisionShape(
+        shapeType=p.GEOM_BOX,
+        halfExtents=[0.3, 0.3, 0.35],
+        collisionFramePosition=[0, 0, 0.35]
+    )
+
+    visual_shape_id = p.createVisualShape(
+        shapeType=p.GEOM_BOX,
+        halfExtents=[0.3, 0.3, 0.35],
+        rgbaColor=[0.5, 0.5, 0.5, 1],
+        visualFramePosition=[0, 0, 0.35]
+    )
+
+    p.createMultiBody(
+        baseMass=0,
+        baseCollisionShapeIndex=collision_shape_id,
+        baseVisualShapeIndex=visual_shape_id,
+        basePosition=standPos
+    )
+
+def addLaptop(object_centers):
+    collision_shape_id = p.createCollisionShape(
+        shapeType=p.GEOM_BOX,
+        halfExtents=[0.19, 0.14, 0.125],
+        collisionFramePosition=[0, 0, 0.125]
+    )
+
+    visual_shape_id = p.createVisualShape(
+        shapeType=p.GEOM_BOX,
+        halfExtents=[0.19, 0.14, 0.125],
+        rgbaColor=[1, 0, 0, 1],
+        visualFramePosition=[0, 0, 0.125]
+    )
+
+    p.createMultiBody(
+        baseMass=0,
+        baseCollisionShapeIndex=collision_shape_id,
+        baseVisualShapeIndex=visual_shape_id,
+        basePosition=object_centers["LAPTOP_CENTER"]
+    )
+
+def plotSphere(coords, radius=0.02, color=[0, 0, 1, 1]):
     """
 	Plots a single sphere in Pybullet centered at coords(x,y,z) location.
 	"""
@@ -69,18 +110,21 @@ def plotSphere(coords, radius=0.05, color=[0, 0, 1, 1]):
         shapeType=p.GEOM_SPHERE, 
         radius=radius, 
         rgbaColor=color, 
-        visualFramePosition=[0, 0, 0])
+        visualFramePosition=[0, 0, 0]
+    )
 
     p.createMultiBody(
         baseMass=0,  # mass=0 makes it static
         baseCollisionShapeIndex=-1,
         baseVisualShapeIndex=visual_shape_id,
-        basePosition=coords)
+        basePosition=coords
+    )
     
-def visualizeTraj(env, waypoints, radius=0.05, color=[0, 0, 1, 1]):
+def visualizeTraj(env, waypoints, radius=0.02, color=[0, 0, 1, 1]):
     """
 	Plots the trajectory found or planned.
 	"""
+    print("Visualizing trajectory.....\n")
     for waypoint in waypoints:
         waypoint = waypoint.tolist()
         ee_position, _ = env.compute_forward_kinematics(waypoint)

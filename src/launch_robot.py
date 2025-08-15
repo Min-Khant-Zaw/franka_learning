@@ -5,6 +5,7 @@ from utils.environment import Environment
 import hydra
 
 import os
+import time
 import logging
 import subprocess
 import atexit
@@ -74,11 +75,8 @@ def main(cfg):
     atexit.register(cleanup)
     signal.signal(signal.SIGTERM, lambda signal_number, stack_frame: cleanup())
 
-    object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [-0.7929, -0.1, 0.0]}
-
-    global _global_env
-
-    # Connect simulation client to the server
+    # Get data for simulation environment
+    object_centers = {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [0.5, -0.1, 0.6]}
     robot_model_cfg = cfg.robot_model
 
     robot_description_path = get_full_path_to_urdf(
@@ -90,19 +88,33 @@ def main(cfg):
         ee_link_name=robot_model_cfg.ee_link_name
     )
 
-    gui = cfg.gui
-    use_grav_comp = cfg.use_grav_comp
-    env = Environment(robot_model_cfg=robot_model_cfg, object_centers=object_centers, robot_model=robot_model, gui=gui, use_grav_comp=use_grav_comp)
-    metadata_cfg = cfg.robot_client.metadata_cfg
+    if cfg.robot_client:
+        t0 = time.time()
+        while not check_server_exists(cfg.ip, cfg.port):
+            time.sleep(0.1)
+            if time.time() - t0 > cfg.timeout:
+                raise ConnectionError("Robot client: Unable to locate server.")
 
-    _global_env = env
+    try:
+        gui = cfg.gui
+        use_grav_comp = cfg.use_grav_comp
+        env = Environment(robot_model_cfg=robot_model_cfg, object_centers=object_centers, robot_model=robot_model, gui=gui, use_grav_comp=use_grav_comp)
+        metadata_cfg = cfg.robot_client.metadata_cfg
 
-    sim = GrpcSimulationClient(
-        env=env,
-        metadata_cfg=metadata_cfg,
-        ip="localhost"
-    )
-    sim.run()
+        # Start simulation client
+        log.info(f"Simulation client is being used...")
+        sim = GrpcSimulationClient(
+            env=env,
+            metadata_cfg=metadata_cfg,
+            ip="localhost"
+        )
+        sim.run()
 
+    except:
+        # Start hardware client
+        log.info("Hardware client is being used...")
+        client = hydra.utils.instantiate(cfg.robot_client)
+        client.run()
+    
 if __name__ == "__main__":
     main()

@@ -22,6 +22,8 @@ class TrajOpt(object):
         # Set Pybullet environment
         self.environment = environment
 
+        self.iteration_count = 0
+
         # Create initial trajectory
         if traj_seed is None:
             print("Using straight line initialization!")
@@ -40,13 +42,13 @@ class TrajOpt(object):
         self.start_constraint = LinearConstraint(self.B, self.start, self.start)
 
         # Create goal pose constraint if given
+        tol = 0.10
         if self.goal_pose is not None:
-            self.goal_pose_target = np.append(self.goal_pose, [0.0, 0.0, 0.0, 1.0])  # [x, y, z, w] quat
-            print(f"Goal pose constraint: {self.goal_pose_target}")
-            # time.sleep(5.0)
-            self.goal_constraint = NonlinearConstraint(self.goal_pose_constraint, lb=self.goal_pose_target - 0.01, ub=self.goal_pose_target + 0.01)
-        # Create goal point equality constraint if goal_pose is None
+            print("Using goal pose as constraint.")
+            self.goal_xyz = np.array(self.goal_pose)
+            self.goal_constraint = NonlinearConstraint(self.goal_pose_constraint, lb=self.goal_xyz, ub=self.goal_xyz)
         else:
+            print("No goal pose given. Using goal as constraint.")
             self.B_goal = np.zeros((self.n_joints, self.n_joints * self.n_waypoints))
             for idx in range(self.n_joints):
                 self.B_goal[idx, (self.n_waypoints - 1) * self.n_joints + idx] = 1
@@ -62,7 +64,7 @@ class TrajOpt(object):
 		above the table by taking the trajectory as the input.
 		"""
         xi = xi.reshape((self.n_waypoints, self.n_joints))
-        return np.array([self.environment.table_constraint(xi[t]) for t in range(1, self.n_waypoints - 1)])
+        return np.array([self.environment.table_constraint(xi[t]) for t in range(0, self.n_waypoints - 1)])
     
     def goal_pose_constraint(self, xi: np.ndarray):
         """
@@ -71,12 +73,8 @@ class TrajOpt(object):
         """
         xi = xi.reshape((self.n_waypoints, self.n_joints))
         last_waypt = xi[-1].tolist()
-        ee_position, ee_orient_quaternion = self.environment.compute_forward_kinematics(last_waypt)
-        # print(f"[DEBUG] EE position at final waypoint: {ee_position}")
-        # print(f"[DEBUG] EE orientation at final waypoint: {ee_orient_quaternion}")
-        print(f"[DEBUG] EE pose at final waypoint: {np.append(ee_position, ee_orient_quaternion)}")
-        # time.sleep(1)
-        return np.append(ee_position, ee_orient_quaternion)
+        ee_position, _ = self.environment.compute_forward_kinematics(last_waypt)
+        return ee_position
 
     # Cost functions
     def efficiency_cost(self, waypt):
@@ -166,27 +164,30 @@ class TrajOpt(object):
                 cost_total += self.efficiency_cost(np.concatenate((xi[idx - 1], xi[idx])))
 
         return cost_total
+    
+    # Print cost at each iteration for debugging
+    def trajcost_logging(self, xi: np.ndarray):
+        cost = self.trajcost(xi)
+        print(f"[COST] Iteration {self.iteration_count}: {cost}")
+        self.iteration_count += 1
+        return cost
 
     # Use scipy optimizer to get optimal trajectory
     def optimize(self, method='SLSQP'):
         start_t = time.time()
         print(f"[DEBUG] Pose constraint is active: {self.goal_constraint}")
-        # time.sleep(5)
         print("[DEBUG] Goal constraint lower bound:", self.goal_constraint.lb)
         print("[DEBUG] Goal constraint upper bound:", self.goal_constraint.ub)
         res = minimize(
-            self.trajcost, 
+            self.trajcost_logging, 
             self.xi0, 
             method=method, 
-            constraints=[self.start_constraint, self.table_constraint],
-            options={'maxiter': self.MAX_ITER}
+            constraints=[self.start_constraint, self.table_constraint, self.goal_constraint],
+            tol=0.24,
+            options={'disp': True, 'maxiter': self.MAX_ITER}
         )
         print(f"[DEBUG] Optimization success: {res.success}, message: {res.message}")
-        # time.sleep(10)
-        print(f"res.x: {res.x}\n")
-        # time.sleep(5)
         xi = res.x.reshape(self.n_waypoints, self.n_joints)
-        print(f"xi: {xi}\n")
         return xi, res, time.time() - start_t
     
     def replan(self, weights, T, timestep):

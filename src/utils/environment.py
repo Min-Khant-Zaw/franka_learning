@@ -12,7 +12,6 @@ from omegaconf import DictConfig
 
 from polysim.envs import AbstractControlledEnv
 from polymetis.utils.data_dir import get_full_path_to_urdf
-
 from torchcontrol.utils.tensor_utils import to_tensor
 
 from utils.my_pybullet_utils import *
@@ -87,9 +86,12 @@ class Environment(AbstractControlledEnv):
             raise Exception(f"Unknown robot definition extension {ext}!")
         
         # Add objects
-        addTable()
+        addTable(tablePos=[0.5, 0.0, 0.0])
+        addRobotStand(standPos=[0.5, 0.9, 0.0])
         if "HUMAN_CENTER" in self.object_centers:
             addHuman(self.object_centers)
+        if "LAPTOP_CENTER" in self.object_centers:
+            addLaptop(self.object_centers)
         
         # Debug utility to print out joint configuration information directly from the URDF/SDF
         if extract_config_from_rdf:
@@ -127,7 +129,8 @@ class Environment(AbstractControlledEnv):
         log.info("loading urdf file: {}".format(abs_urdf_path))
         robot_id = sim.loadURDF(
             abs_urdf_path,          # might have to change this (different from the urdf from pybullet_data)
-            basePosition=[0.4, -0.25, 0.6],
+            basePosition=[0.5, 0.75, 0.7],
+            baseOrientation=[0.0, 0.0, -0.707, 0.707],
             useFixedBase=True,
             flags=p.URDF_USE_INERTIA_FROM_FILE,
         )
@@ -255,41 +258,13 @@ class Environment(AbstractControlledEnv):
 
         return applied_torques
     
-    # def compute_forward_kinematics(self, joint_pos: List[float] = None):
-    #     """
-    #     Computes forward kinematics.
-
-    #     Warning:
-    #         Uses PyBullet forward kinematics by resetting to the given joint position (or, if not given,
-    #         the rest position). Therefore, drastically modifies simulation state!
-
-    #     Args:
-    #         joint_pos: Joint positions for which to compute forward kinematics.
-
-    #     Returns:
-    #         np.ndarray: 3-dimensional end-effector position
-
-    #         np.ndarray: 4-dimensional end-effector orientation as quaternion
-
-    #     """
-    #     if joint_pos != None:
-    #         log.warning(
-    #             "Resetting PyBullet simulation to given joint_pos to compute forward kinematics!"
-    #         )
-    #         self.reset(joint_pos)
-    #     link_state = self.sim.getLinkState(
-    #         self.robot_id,
-    #         self.ee_link_idx,
-    #         computeForwardKinematics=True,
-    #     )
-    #     ee_position = np.array(link_state[4])
-    #     ee_orient_quaternion = np.array(link_state[5])
-
-    #     return ee_position, ee_orient_quaternion
-
-    def compute_forward_kinematics(self, joint_pos: List[float]):
+    def compute_forward_kinematics(self, joint_pos: List[float] = None):
         """
         Computes forward kinematics.
+
+        Warning:
+            Uses PyBullet forward kinematics by resetting to the given joint position (or, if not given,
+            the rest position). Therefore, drastically modifies simulation state!
 
         Args:
             joint_pos: Joint positions for which to compute forward kinematics.
@@ -300,58 +275,45 @@ class Environment(AbstractControlledEnv):
             np.ndarray: 4-dimensional end-effector orientation as quaternion
 
         """
-        joint_positions = to_tensor(joint_pos)
-
-        result = self.robot_model.forward_kinematics(joint_positions)
-
-        ee_position = result[0].numpy()
-        ee_orient_quaternion = result[1].numpy()
+        if joint_pos != None:
+            # log.warning(
+            #     "Resetting PyBullet simulation to given joint_pos to compute forward kinematics!"
+            # )
+            self.reset(joint_pos)
+        link_state = self.sim.getLinkState(
+            self.robot_id,
+            self.ee_link_idx,
+            computeForwardKinematics=True,
+        )
+        ee_position = np.array(link_state[4])
+        ee_orient_quaternion = np.array(link_state[5])
 
         return ee_position, ee_orient_quaternion
-    
-    # def compute_inverse_kinematics(
-    #     self, target_position: List[float], target_orientation: List[float] = None
-    # ):
-    #     """
-    #     Computes inverse kinematics.
 
-    #     Uses PyBullet to compute inverse kinematics.
+    # def compute_forward_kinematics(self, joint_pos: List[float]):
+    #     """
+    #     Computes forward kinematics.
 
     #     Args:
-    #         target_position: 3-dimensional desired end-effector position.
-    #         target_orientation: 4-dimensional desired end-effector orientation as quaternion.
+    #         joint_pos: Joint positions for which to compute forward kinematics.
 
     #     Returns:
-    #         np.ndarray: Joint position satisfying the given target end-effector position/orientation.
+    #         np.ndarray: 3-dimensional end-effector position
+
+    #         np.ndarray: 4-dimensional end-effector orientation as quaternion
 
     #     """
-    #     if isinstance(target_position, np.ndarray):
-    #         target_position = target_position.tolist()
-    #     if isinstance(target_orientation, np.ndarray):
-    #         target_orientation = target_orientation.tolist()
-    #     # ik_kwargs = dict(
-    #     #     bodyUniqueId=self.robot_id,
-    #     #     endEffectorLinkIndex=self.ee_link_idx,
-    #     #     targetPosition=target_position,
-    #     #     targetOrientation=target_orientation,
-    #     #     upperLimits=self.joint_limits_high.tolist(),
-    #     #     lowerLimits=self.joint_limits_low.tolist(),
-    #     # )
-    #     # if self.joint_damping is not None:
-    #     #     ik_kwargs["joint_damping"] = self.joint_damping.tolist()
-    #     desired_joint_pos = self.sim.calculateInverseKinematics(
-    #         bodyUniqueId=self.robot_id,
-    #         endEffectorLinkIndex=self.ee_link_idx,
-    #         targetPosition=target_position,
-    #         targetOrientation=target_orientation,
-    #         upperLimits=self.joint_limits_high.tolist(),
-    #         lowerLimits=self.joint_limits_low.tolist(),
-    #         jointDamping=self.joint_damping.tolist()if self.joint_damping is not None else None
-    #     )
-    #     return np.array(desired_joint_pos)
+    #     joint_positions = to_tensor(joint_pos)
+
+    #     result = self.robot_model.forward_kinematics(joint_positions)
+
+    #     ee_position = result[0].numpy()
+    #     ee_orient_quaternion = result[1].numpy()
+
+    #     return ee_position, ee_orient_quaternion
 
     def compute_inverse_kinematics(
-        self, target_position: List[float], target_orientation: List[float]
+        self, target_position: List[float], target_orientation: List[float]=None
     ):
         """
         Computes inverse kinematics.
@@ -368,13 +330,26 @@ class Environment(AbstractControlledEnv):
             target_position = target_position.tolist()
         if isinstance(target_orientation, np.ndarray):
             target_orientation = target_orientation.tolist()
-        
-        link_pos = to_tensor(target_position)
-        link_quat = to_tensor(target_orientation)
-
-        desired_joint_pos = self.robot_model.inverse_kinematics(link_pos, link_quat).numpy()
-
-        return desired_joint_pos
+        # ik_kwargs = dict(
+        #     bodyUniqueId=self.robot_id,
+        #     endEffectorLinkIndex=self.ee_link_idx,
+        #     targetPosition=target_position,
+        #     targetOrientation=target_orientation,
+        #     upperLimits=self.joint_limits_high.tolist(),
+        #     lowerLimits=self.joint_limits_low.tolist(),
+        # )
+        # if self.joint_damping is not None:
+        #     ik_kwargs["joint_damping"] = self.joint_damping.tolist()
+        desired_joint_pos = self.sim.calculateInverseKinematics(
+            bodyUniqueId=self.robot_id,
+            endEffectorLinkIndex=self.ee_link_idx,
+            targetPosition=target_position,
+            targetOrientation=target_orientation,
+            upperLimits=self.joint_limits_high.tolist(),
+            lowerLimits=self.joint_limits_low.tolist(),
+            jointDamping=self.joint_damping.tolist()if self.joint_damping is not None else None
+        )
+        return np.array(desired_joint_pos)
     
     def compute_inverse_dynamics(
         self, joint_pos: np.ndarray, joint_vel: np.ndarray, joint_acc: np.ndarray
@@ -501,8 +476,8 @@ class Environment(AbstractControlledEnv):
         waypt = waypt.tolist()
         _, ee_orientation = self.compute_forward_kinematics(waypt)
         [roll, pitch, yaw] = euler_from_quaternion(ee_orientation)
-        return pitch
-
+        return abs(pitch - 0.71) + abs(roll - 1.60)
+    
     # Distance to laptop
     def laptop_features(self, waypt, prev_waypt):
         """
