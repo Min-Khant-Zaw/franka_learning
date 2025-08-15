@@ -183,7 +183,7 @@ class TrajOpt(object):
             self.xi0, 
             method=method, 
             constraints=[self.start_constraint, self.table_constraint, self.goal_constraint],
-            tol=0.35,
+            tol=0.24,
             options={'disp': True, 'maxiter': self.MAX_ITER}
         )
         print(f"[DEBUG] Optimization success: {res.success}, message: {res.message}")

@@ -28,7 +28,7 @@ class PathFollower(toco.PolicyModule):
             Kxd,
             goal_joint_position: torch.Tensor,
             epsilon,
-            robot_model: torch.nn.Module,
+            robot_model,
             ignore_gravity=True
     ):
         """
@@ -54,9 +54,17 @@ class PathFollower(toco.PolicyModule):
         self.register_buffer("goal_joint_position", goal_joint_position.clone())
         self.epsilon = epsilon
 
+        # Mode to switch controller; 0 for path_follower, 1 for impedance
+        self.mode = torch.nn.Parameter(torch.tensor(0.0, dtype=torch.float64))
+        self.switched = torch.nn.Parameter(torch.tensor(0.0, dtype=torch.float64))
+
         # Get the number of waypoints
         self.N = self.joint_pos_trajectory.shape[0]
         assert self.joint_pos_trajectory.shape == self.joint_vel_trajectory.shape
+
+        # Gains for impedance control
+        Kp_imp = torch.zeros_like(Kq)
+        Kd_imp = Kqd * 0.05
 
         # Control modules
         self.robot_model = robot_model
@@ -64,6 +72,12 @@ class PathFollower(toco.PolicyModule):
             robot_model=robot_model, ignore_gravity=ignore_gravity
         )
         self.joint_pd = toco.modules.feedback.HybridJointSpacePD(Kq, Kqd, Kx, Kxd)
+        self.impedance = toco.policies.JointImpedanceControl(
+            joint_pos_current=self.joint_pos_trajectory[0].clone(),
+            Kp=Kp_imp,
+            Kd=Kd_imp,
+            robot_model=self.robot_model
+        )
 
         # Initialize step count
         self.i = 0
@@ -73,41 +87,50 @@ class PathFollower(toco.PolicyModule):
         joint_pos_current = state_dict["joint_positions"]
         joint_vel_current = state_dict["joint_velocities"]
 
-        # print(f"Current joint positions: {joint_pos_current}")
-        # print(f"Goal joint positions: {self.goal_joint_position}")
-
-        motor_torques = state_dict["motor_torques_measured"]
-        external_torques = state_dict["motor_torques_external"]
-
-        print(f"Motor_torques_measured: {motor_torques}")
-        print(f"Motor_torques_external: {external_torques}")
-
         # Query plan for desired state
         joint_pos_desired = self.joint_pos_trajectory[self.i, :]
         joint_vel_desired = self.joint_vel_trajectory[self.i, :]
 
-        # Control logic
-        torque_feedback = self.joint_pd(
-            joint_pos_current,
-            joint_vel_current,
-            joint_pos_desired,
-            joint_vel_desired,
-            self.robot_model.compute_jacobian(joint_pos_current)
-        )
-        torque_feedforward = self.invdyn(
-            joint_pos_current, joint_vel_current, torch.zeros_like(joint_pos_current)
-        )   # coriolis and gravity compensation
-        torque_output = torque_feedback + torque_feedforward
+        # Activate impedance control if there is interaction
+        if int(self.mode) == 1:
+            # Overwrite the joint_pos_desired with joint_pos_current
+            with torch.no_grad():
+                self.impedance.joint_pos_desired.copy_(joint_pos_current.view_as(self.impedance.joint_pos_desired))
+                self.impedance.joint_vel_desired.zero_()
 
-        # Increment and terminate if all waypoints have been executed
-        # self.i += 1
-        # if self.i == self.N:
-        #     self.set_terminated()
-        self.i = min(self.i + 1, self.N - 1)
+            torque_dict = self.impedance(state_dict)
+            torque_output = torque_dict["joint_torques"]
+        # Activate path follower if there is no interaction
+        else:
+            torque_feedback = self.joint_pd(
+                joint_pos_current,
+                joint_vel_current,
+                joint_pos_desired,
+                joint_vel_desired,
+                self.robot_model.compute_jacobian(joint_pos_current)
+            )
+            torque_feedforward = self.invdyn(
+                joint_pos_current, joint_vel_current, torch.zeros_like(joint_pos_current)
+            )   # coriolis and gravity compensation
+            torque_output = torque_feedback + torque_feedforward
+
+        # print(f"Mode: {self.mode}")
+        # print(f"Switched: {self.switched}")
+
+        # Increment through waypoints
+        if int(self.mode) == 0 and int(self.switched) == 0:
+            self.i = min(self.i + 1, self.N - 1)
+        # Go to the closest waypoint if the robot is pushed away
+        elif int(self.mode) == 0 and int(self.switched) == 1:
+            diffs = torch.linalg.norm(self.joint_pos_trajectory - joint_pos_current, dim=1)
+            self.i = int(torch.argmin(diffs))
+            with torch.no_grad():
+                self.switched.zero_()
+
+        # Terminate if the current position is close enough to the goal
         dist_from_goal = torch.abs(joint_pos_current - self.goal_joint_position)
-        # print(f"[DEBUG] Distance from goal: {dist_from_goal}")
         is_at_goal = bool(torch.all(dist_from_goal < self.epsilon))
-        print(f"[DEBUG] Comparison: {is_at_goal}\n")
+        # print(f"[DEBUG] Comparison: {is_at_goal}\n")
         if is_at_goal:
             self.set_terminated()
 
@@ -163,6 +186,8 @@ def main(cfg):
     T = cfg.setup.T
     num_steps = int(T * hz)
     timestep = T / num_steps
+    INTERACTION_TORQUE_THRESHOLD = np.array(cfg.setup.INTERACTION_TORQUE_THRESHOLD).reshape((7, 1))
+    INTERACTION_TORQUE_EPSILON = np.array(cfg.setup.INTERACTION_TORQUE_EPSILON).reshape((7, 1))
 
     # Reset
     robot.go_home(time_to_go=T)
@@ -255,42 +280,49 @@ def main(cfg):
 
     # Run policy
     print("\nRunning path follower policy ...\n")
-    state_log = robot.send_torch_policy(policy, blocking=True)
-    # state_log = robot.move_to_joint_positions(positions=goal, time_to_go=T)
+    state_log = robot.send_torch_policy(policy, blocking=False)
+
+    mode = 0
 
     # Get updated joint_positions
-    joint_positions = robot.get_joint_positions()
-    joint_velocities = robot.get_joint_velocities()
+    # joint_positions = robot.get_joint_positions()
+    # joint_velocities = robot.get_joint_velocities()
 
-    print(f"\nNew joint positions: {joint_positions}\n")
-    print(f"\nNew joint velocities: {joint_velocities}\n")
+    # print(f"\nNew joint positions: {joint_positions}\n")
+    # print(f"\nNew joint velocities: {joint_velocities}\n")
 
-    ee_pos, ee_quat = robot.get_ee_pose()
-    print(f"\nNew end effector position: {ee_pos}\n")
-    print(f"\nNew end effecotr orientation: {ee_quat}\n")
+    # ee_pos, ee_quat = robot.get_ee_pose()
+    # print(f"\nNew end effector position: {ee_pos}\n")
+    # print(f"\nNew end effecotr orientation: {ee_quat}\n")
 
-    [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
-    print(f"\nNew end effector pitch: {pitch}\n")
+    # [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
+    # print(f"\nNew end effector pitch: {pitch}\n")
 
-    robot_state = robot.get_robot_state()
-    print(f"\nCurrent robot state: {robot_state}\n")
+    # robot_state = robot.get_robot_state()
+    # print(f"\nCurrent robot state: {robot_state}\n")
 
-    # while robot.is_running_policy():
-    #     # Get updated joint_positions
-    #     joint_positions = robot.get_joint_positions()
-    #     joint_velocities = robot.get_joint_velocities()
+    while robot.is_running_policy():
+        # Get external joint torques
+        external_torques = np.array(robot.get_robot_state().motor_torques_external).reshape((7, 1))
 
-    #     print(f"\nNew joint positions: {joint_positions}\n")
-    #     print(f"\nNew joint velocities: {joint_velocities}\n")
-
-    #     ee_pos, ee_quat = robot.get_ee_pose()
-    #     print(f"\nNew end effector position: {ee_pos}\n")
-
-    #     [roll, pitch, yaw] = euler_from_quaternion(ee_quat)
-    #     print(f"\nNew end effector pitch: {pitch}\n")
-
-    #     robot_state = robot.get_robot_state()
-    #     print(f"\nCurrent robot state: {robot_state}\n")
+        # Center torques around zero
+        external_torques -= INTERACTION_TORQUE_THRESHOLD
+        # print(f"\nCalibrated external joint torques: {external_torques}\n")
+        interaction = (external_torques > INTERACTION_TORQUE_EPSILON).any()
+        print(f"Interaction: {interaction}")
+        # Check if interaction was not noise
+        if mode == 0 and interaction:
+            mode = 1
+            state_log = robot.update_current_policy({
+                "mode": torch.tensor(1.0, dtype=torch.float64),
+                "switched": torch.tensor(0.0, dtype=torch.float64)
+            })
+        elif mode == 1 and not interaction:
+            mode = 0
+            state_log = robot.update_current_policy({
+                "mode": torch.tensor(0.0, dtype=torch.float64),
+                "switched": torch.tensor(0.0, dtype=torch.float64)
+            })
 
 if __name__ == "__main__":
     main()
