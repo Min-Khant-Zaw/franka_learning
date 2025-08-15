@@ -10,7 +10,6 @@ from polymetis import RobotInterface
 from polymetis.utils.data_dir import get_full_path_to_urdf
 
 import hydra
-import time
 
 from planners.trajopt_planner import TrajOpt
 from utils.environment import Environment
@@ -51,8 +50,6 @@ class PathFollower(toco.PolicyModule):
 
         self.joint_pos_trajectory = to_tensor(stack_trajectory(joint_pos_trajectory))
         self.joint_vel_trajectory = to_tensor(stack_trajectory(joint_vel_trajectory))
-        
-        self.goal_joint_position = goal_joint_position
 
         self.register_buffer("goal_joint_position", goal_joint_position.clone())
         self.epsilon = epsilon
@@ -191,9 +188,6 @@ def main(cfg):
     timestep = T / num_steps
     INTERACTION_TORQUE_THRESHOLD = np.array(cfg.setup.INTERACTION_TORQUE_THRESHOLD).reshape((7, 1))
     INTERACTION_TORQUE_EPSILON = np.array(cfg.setup.INTERACTION_TORQUE_EPSILON).reshape((7, 1))
-
-    # ----- Controller Setup ----- #
-    epsilon = cfg.controller.epsilon
 
     # Reset
     robot.go_home(time_to_go=T)
