@@ -14,6 +14,7 @@ import hydra
 from planners.trajopt_planner import TrajOpt
 from learners.phri_learner import PHRILearner
 from utils.environment import Environment
+from utils.my_pybullet_utils import *
 
 from tf.transformations import euler_from_quaternion
 
@@ -26,6 +27,8 @@ class PHRIInference(toco.PolicyModule):
             Kqd,
             Kx,
             Kxd,
+            goal_joint_position: torch.Tensor,
+            epsilon,
             robot_model: torch.nn.Module,
             ignore_gravity=True
     ):
@@ -39,6 +42,8 @@ class PHRIInference(toco.PolicyModule):
             Kqd: D gain matrix of shape (nA, N) or shape (N,) representing a N-by-N diagonal matrix (if nA=N)
             Kx: P gain matrix of shape (6, 6) or shape (6,) representing a 6-by-6 diagonal matrix
             Kxd: D gain matrix of shape (6, 6) or shape (6,) representing a 6-by-6 diagonal matrix
+            goal_joint_position: Goal joint position to check if the robot has reached the goal
+            epsilon: Threshold value to determine if the robot is close enough to the goal
             robot_model: A robot model from torchcontrol.models
             ignore_gravity: `True` if the robot is already gravity compensated, `False` otherwise
 
@@ -48,6 +53,9 @@ class PHRIInference(toco.PolicyModule):
 
         self.joint_pos_trajectory = to_tensor(stack_trajectory(joint_pos_trajectory))
         self.joint_vel_trajectory = to_tensor(stack_trajectory(joint_vel_trajectory))
+
+        self.register_buffer("goal_joint_position", goal_joint_position.clone())
+        self.epsilon = epsilon
 
         # Get the number of waypoints
         self.N = self.joint_pos_trajectory.shape[0]
@@ -67,8 +75,9 @@ class PHRIInference(toco.PolicyModule):
         # Parse current state
         joint_pos_current = state_dict["joint_positions"]
         joint_vel_current = state_dict["joint_velocities"]
-        external_torques = state_dict["motor_torques_external"]
-        print(f"\nCurrent External Joint Torques: {external_torques}\n")
+
+        # external_torques = state_dict["motor_torques_external"]
+        # print(f"\nCurrent External Joint Torques: {external_torques}\n")
 
         # interaction = True
         # # for i in range(7):
@@ -117,9 +126,14 @@ class PHRIInference(toco.PolicyModule):
         )   # coriolis and gravity compensation
         torque_output = torque_feedback + torque_feedforward
 
-        # Increment and terminate if all waypoints have been executed
-        self.i += 1
-        if self.i == self.N:
+        # Increment through waypoints
+        self.i = min(self.i + 1, self.N - 1)
+
+        # Terminate if the current position is close enough to the goal
+        dist_from_goal = torch.abs(joint_pos_current - self.goal_joint_position)
+        is_at_goal = bool(torch.all(dist_from_goal < self.epsilon))
+        # print(f"[DEBUG] Comparison: {is_at_goal}\n")
+        if is_at_goal:
             self.set_terminated()
         
         return {"joint_torques": torque_output}
@@ -174,8 +188,8 @@ def main(cfg):
     T = cfg.setup.T
     num_steps = int(T * hz)
     timestep = T / num_steps
-    INTERACTION_TORQUE_THRESHOLD = cfg.setup.INTERACTION_TORQUE_THRESHOLD
-    INTERACTION_TORQUE_EPSILON = cfg.setup.INTERACTION_TORQUE_EPSILON
+    INTERACTION_TORQUE_THRESHOLD = np.array(cfg.setup.INTERACTION_TORQUE_THRESHOLD).reshape((7, 1))
+    INTERACTION_TORQUE_EPSILON = np.array(cfg.setup.INTERACTION_TORQUE_EPSILON).reshape((7, 1))
 
     # Reset
     robot.go_home(time_to_go=T)
@@ -198,7 +212,8 @@ def main(cfg):
     environment = Environment(
         robot_model_cfg=robot_model_cfg,
         object_centers=object_centers,
-        gui=False
+        robot_model=robot_model,
+        gui=True
     )
 
     # ----- Learner Setup ----- #
@@ -230,6 +245,13 @@ def main(cfg):
 
     joint_pos_trajectory = traj.waypts
 
+    # Downsample trajectory for visualization
+    viz_traj = traj.downsample(100)
+    viz_traj_waypts = viz_traj.waypts
+
+    # Visualize trajectory
+    visualizeTraj(environment, viz_traj_waypts, radius=0.02, color=[0, 0, 1, 1])
+
     # Calculate joint velocity trajectory
     joint_vel_trajectory = compute_joint_velocities(joint_pos_trajectory, timestep)
 
@@ -237,8 +259,11 @@ def main(cfg):
     joint_pos_trajectory = to_tensor(joint_pos_trajectory)
     joint_vel_trajectory = to_tensor(joint_vel_trajectory)
 
-    print(f"\nJoint position trajectory: {joint_pos_trajectory}\n")
-    print(f"\nJoint velocity trajectory: {joint_vel_trajectory}\n")
+    goal_joint_position = joint_pos_trajectory[-1, :]
+    print(f"Goal joint position: {goal_joint_position}\n")
+
+    # ----- Controller Setup ----- #
+    epsilon = cfg.controller.epsilon
 
     # Move the robot to start
     start = to_tensor(start)
@@ -256,6 +281,8 @@ def main(cfg):
         Kqd=default_kqd,
         Kx=default_kx,
         Kxd=default_kxd,
+        goal_joint_position=goal_joint_position,
+        epsilon=epsilon,
         robot_model=robot_model,
     )
 
@@ -269,12 +296,11 @@ def main(cfg):
         print(f"\nCurrent external joint torques: {external_torques}\n")
 
         interaction = False
-        for i in range(7):
-            # Center torques around zero
-            external_torques -= INTERACTION_TORQUE_THRESHOLD[i]
-            # Check if interaction was not noise
-            if np.fabs(external_torques[i][0]) > INTERACTION_TORQUE_EPSILON[i]:
-                interaction = True
+        # Center torques around zero
+        external_torques -= INTERACTION_TORQUE_THRESHOLD
+        # print(f"\nCalibrated external joint torques: {external_torques}\n")
+        interaction = (np.fabs(external_torques) > INTERACTION_TORQUE_EPSILON).any()
+        print(f"Interaction: {interaction}")
         
         # If we experienced large enough interaction force, then learn
         if interaction:

@@ -58,6 +58,7 @@ class PathFollower(toco.PolicyModule):
 
         # Mode to switch controller; 0 for path_follower, 1 for impedance
         self.mode = torch.nn.Parameter(torch.tensor(0.0, dtype=torch.float64))
+        # Check if the controller switched from impedance control to path follower; 1 if switched, 0 if not
         self.switched = torch.nn.Parameter(torch.tensor(0.0, dtype=torch.float64))
 
         # Get the number of waypoints
@@ -122,7 +123,7 @@ class PathFollower(toco.PolicyModule):
         # Increment through waypoints
         if int(self.mode) == 0 and int(self.switched) == 0:
             self.i = min(self.i + 1, self.N - 1)
-        # Go to the closest waypoint if the robot is pushed away
+        # Go to the closest waypoint if the robot was in impedance control before switching back to path follower
         elif int(self.mode) == 0 and int(self.switched) == 1:
             diffs = torch.linalg.norm(self.joint_pos_trajectory - joint_pos_current, dim=1)
             self.i = int(torch.argmin(diffs))
@@ -216,12 +217,6 @@ def main(cfg):
         gui=True
     )
 
-    # calculated_goal_pose = environment.compute_forward_kinematics(goal.tolist())
-    # print(f"Calculated goal pose: {calculated_goal_pose}")
-
-    # calculated_goal = environment.compute_inverse_kinematics(goal_pose)
-    # print(f"Calculated goal: {calculated_goal}\n")
-
     # ----- Planner Setup ----- #
     # Retrieve the planner specific parameters
     planner_type = cfg.planner.type
@@ -293,9 +288,10 @@ def main(cfg):
         # Center torques around zero
         external_torques -= INTERACTION_TORQUE_THRESHOLD
         # print(f"\nCalibrated external joint torques: {external_torques}\n")
-        interaction = (external_torques > INTERACTION_TORQUE_EPSILON).any()
+        interaction = (np.fabs(external_torques) > INTERACTION_TORQUE_EPSILON).any()
         print(f"Interaction: {interaction}")
-        # Check if interaction was not noise
+
+        # Update mode and switched status in the policy
         if mode == 0 and interaction:
             mode = 1
             state_log = robot.update_current_policy({
@@ -306,7 +302,7 @@ def main(cfg):
             mode = 0
             state_log = robot.update_current_policy({
                 "mode": torch.tensor(0.0, dtype=torch.float64),
-                "switched": torch.tensor(0.0, dtype=torch.float64)
+                "switched": torch.tensor(1.0, dtype=torch.float64)
             })
 
 if __name__ == "__main__":
