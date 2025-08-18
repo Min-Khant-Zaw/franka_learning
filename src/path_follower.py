@@ -41,6 +41,8 @@ class PathFollower(toco.PolicyModule):
             Kqd: D gain matrix of shape (nA, N) or shape (N,) representing a N-by-N diagonal matrix (if nA=N)
             Kx: P gain matrix of shape (6, 6) or shape (6,) representing a 6-by-6 diagonal matrix
             Kxd: D gain matrix of shape (6, 6) or shape (6,) representing a 6-by-6 diagonal matrix
+            goal_joint_position: Goal joint position to check if the robot has reached the goal
+            epsilon: Threshold value to determine if the robot is close enough to the goal
             robot_model: A robot model from torchcontrol.models
             ignore_gravity: `True` if the robot is already gravity compensated, `False` otherwise
 
