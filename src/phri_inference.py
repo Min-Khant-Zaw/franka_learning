@@ -168,7 +168,7 @@ def main(cfg):
 
     # Initialize robot interface
     robot = RobotInterface(
-        ip_address = "localhost"
+        ip_address=cfg.ip
     )
 
     # Get robot metadata
@@ -236,7 +236,7 @@ def main(cfg):
         max_iter = cfg.planner.max_iter
         n_waypoints = cfg.planner.n_waypoints
         # Initialize trajectory planner
-        traj_planner = TrajOpt(n_waypoints, start, goal, goal_pose, feat_list, feat_weights, max_iter, environment)
+        traj_planner = TrajOpt(n_waypoints, start, goal, feat_list, feat_weights, max_iter, environment)
     else:
         raise Exception(f'\nPlanner {planner_type} not implemented.\n')
     
@@ -293,12 +293,12 @@ def main(cfg):
     while robot.is_running_policy():
         # Get external joint torques
         external_torques = np.array(robot.get_robot_state().motor_torques_external).reshape((7, 1))
-        print(f"\nCurrent external joint torques: {external_torques}\n")
+        # print(f"\nCurrent external joint torques: {external_torques}\n")
 
         interaction = False
         # Center torques around zero
         external_torques -= INTERACTION_TORQUE_THRESHOLD
-        # print(f"\nCalibrated external joint torques: {external_torques}\n")
+        print(f"\nCalibrated external joint torques: {external_torques}\n")
         interaction = (np.fabs(external_torques) > INTERACTION_TORQUE_EPSILON).any()
         print(f"Interaction: {interaction}")
         
