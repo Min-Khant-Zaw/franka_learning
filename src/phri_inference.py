@@ -5,6 +5,7 @@ import numpy as np
 
 import torchcontrol as toco
 from torchcontrol.utils.tensor_utils import to_tensor, stack_trajectory
+from torchcontrol.policies import JointImpedanceControl
 
 from polymetis import RobotInterface
 from polymetis.utils.data_dir import get_full_path_to_urdf
@@ -33,7 +34,7 @@ class PHRIInference(toco.PolicyModule):
             ignore_gravity=True
     ):
         """
-        Executes a joint trajectory by using a joint PD controller AND supports receiving human corrections online.
+        Executes a joint trajectory by using a joint PD controller.
 
         Args:
             joint_pos_trajectory: Desired joint position trajectory as list of tensors
@@ -215,6 +216,9 @@ def main(cfg):
         robot_model=robot_model,
         gui=True
     )
+    
+    mode = "path_follow"
+    pushed = False
 
     # ----- Learner Setup ----- #
     # Retrieve the learner specific parameters
@@ -302,31 +306,77 @@ def main(cfg):
         interaction = (np.fabs(external_torques) > INTERACTION_TORQUE_EPSILON).any()
         print(f"Interaction: {interaction}")
         
+        if mode == "path_follow":
         # If we experienced large enough interaction force, then learn
-        if interaction:
-            timestamp = robot.get_robot_state().timestamp.seconds - start_time
-            print(f"Current timestamp: {timestamp}\n")
+            if interaction:
+                timestamp = robot.get_robot_state().timestamp.seconds - start_time
+                print(f"Current timestamp: {timestamp}\n")
 
-            feat_weights = phri_learner.learn_weights(traj, external_torques, timestamp)
-            betas = phri_learner.betas
-            betas_u = phri_learner.betas_u
-            updates = phri_learner.updates
+                current_joint_position = robot.get_joint_positions()
 
-            traj = traj_planner.replan(feat_weights, T, timestep)
-            joint_pos_trajectory = traj.waypts
+                # Create impedance policy
+                imp_policy = JointImpedanceControl(
+                    joint_pos_current=current_joint_position,
+                    Kp=default_kq,
+                    Kd=default_kqd,
+                    robot_model=robot_model
+                )
 
-            # Calculate joint velocity trajectory
-            joint_vel_trajectory = compute_joint_velocities(joint_pos_trajectory, timestep)
+                state_log = robot.send_torch_policy(imp_policy, blocking=False)
+                mode = "impedance"
+                print("[MODE] Switched to impedance mode. Waiting for a second push to start learning.")
 
-            # Convert the trajectory to torch.Tensor()
-            joint_pos_trajectory = to_tensor(joint_pos_trajectory)
-            joint_vel_trajectory = to_tensor(joint_vel_trajectory)
+        elif mode == "impedance":
+            if interaction:
+                feat_weights = phri_learner.learn_weights(traj, external_torques, timestamp)
+                betas = phri_learner.betas
+                betas_u = phri_learner.betas_u
+                updates = phri_learner.updates
 
-            print(f"\nCorrected joint position trajectory: {joint_pos_trajectory}\n")
-            print(f"\nCorrected joint velocity trajectory: {joint_vel_trajectory}\n")
+                traj = traj_planner.replan(feat_weights, T, timestep)
+                joint_pos_trajectory = traj.waypts
 
-            state_log = robot.update_current_policy({"joint_pos_desired": joint_pos_trajectory,
-                                                     "joint_vel_desired": joint_vel_trajectory})
+                # Downsample trajectory for visualization
+                viz_traj = traj.downsample(100)
+                viz_traj_waypts = viz_traj.waypts
+
+                # Visualize trajectory
+                visualizeTraj(environment, viz_traj_waypts, radius=0.02, color=[0, 0, 1, 1])
+
+                # Calculate joint velocity trajectory
+                joint_vel_trajectory = compute_joint_velocities(joint_pos_trajectory, timestep)
+
+                # Convert the trajectory to torch.Tensor()
+                joint_pos_trajectory = to_tensor(joint_pos_trajectory)
+                joint_vel_trajectory = to_tensor(joint_vel_trajectory)
+
+                goal_joint_position = joint_pos_trajectory[-1, :]
+
+                print(f"\nCorrected joint position trajectory: {joint_pos_trajectory}\n")
+                print(f"\nCorrected joint velocity trajectory: {joint_vel_trajectory}\n")
+                print(f"Goal joint position: {goal_joint_position}\n")
+
+                # state_log = robot.update_current_policy({"joint_pos_desired": joint_pos_trajectory,
+                #                                         "joint_vel_desired": joint_vel_trajectory})
+
+                # Create a new follower policy
+                policy = PHRIInference(
+                    joint_pos_trajectory=joint_pos_trajectory,
+                    joint_vel_trajectory=joint_vel_trajectory,
+                    Kq=default_kq,
+                    Kqd=default_kqd,
+                    Kx=default_kx,
+                    Kxd=default_kxd,
+                    goal_joint_position=goal_joint_position,
+                    epsilon=epsilon,
+                    robot_model=robot_model,
+                )
+
+                # Run policy
+                print("\nRunning phri inference policy ...\n")
+                state_log = robot.send_torch_policy(policy, blocking=False)
+                mode = "follow"
+                print("[MODE] Done learning. Continue to follow the corrected trajectory")
 
         # joint_positions = robot.get_joint_positions()
         # joint_velocities = robot.get_joint_velocities()

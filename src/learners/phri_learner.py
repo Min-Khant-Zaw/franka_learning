@@ -119,6 +119,7 @@ class PHRILearner(object):
 		# Set up the optimization problem.
 		def u_constrained(u):
 			cost = np.linalg.norm(u)**2
+			print(f"Cost: {cost}")
 			return cost
 
 		def u_constraint(u, idx):
@@ -128,7 +129,7 @@ class PHRILearner(object):
 			# print(f"H features: {H_features}")
 			Phi_H = np.sum(H_features)
 			cost = (Phi_H - Phi_p[idx])**2
-			print(f"Cost: {cost}")
+			# print(f"Cost: {cost}")
 			return cost
 
 		# Initialize, then compute betas vector.
