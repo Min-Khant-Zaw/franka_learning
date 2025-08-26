@@ -122,26 +122,39 @@ class PHRILearner(object):
 			print(f"Cost: {cost}")
 			return cost
 
-		def u_constraint(u, idx):
+		def u_constraint(u, idx, lam=1e3):
 			u_p = np.reshape(u, (7, 1))
 			waypts_deform_p = self.traj.deform(u_p, t, self.alpha, self.n).waypts
 			H_features = self.environment.featurize(waypts_deform_p, [self.feat_list[idx]])[0]
 			# print(f"H features: {H_features}")
 			Phi_H = np.sum(H_features)
 			cost = (Phi_H - Phi_p[idx])**2
-			# print(f"Cost: {cost}")
+			# cost = np.linalg.norm(u)**2 + lam * (Phi_H - Phi_p[idx])**2
 			return cost
 
 		# Initialize, then compute betas vector.
 		betas = [1.0] * self.num_features
+		u0 = np.array(u_h).reshape(-1)	# flatten into 1D array for scipy minimize
 		for i in range(self.num_features):
 			# Compute optimal action.
-			u_h_opt = minimize(u_constrained, np.zeros(7,), method='SLSQP',
+			u_h_opt = minimize(u_constrained, u0, method='SLSQP',
 								constraints=({'type': 'eq', 'fun': u_constraint, 'args': (i,)}),
 								options={'maxiter': 10, 'ftol': 1e-6, 'disp': True})
+			print(f"[DEBUG] Optimization success: {u_h_opt.success}, message: {u_h_opt.message}")
+
+			if (not u_h_opt.success) or (u_h_opt.x is None):
+				betas[i] = 1e-3
+				continue
+
 			u_h_star = np.reshape(u_h_opt.x, (7, 1))
+			print(f"Optimized torques: {u_h_star}")
+			print(f"Norm of optimized torques: {np.linalg.norm(u_h_star)}")
 
 			# Compute beta based on deviation from optimal action.
+			if abs(np.linalg.norm(u_h)**2 - np.linalg.norm(u_h_star)**2) < 1e-12:
+				betas[i] = 1e-3
+				continue
+
 			beta_norm = 1.0 / np.linalg.norm(u_h_star) ** 2
 			betas[i] = self.num_features / (2 * beta_norm * abs(np.linalg.norm(u_h)**2 - np.linalg.norm(u_h_star)**2))
 

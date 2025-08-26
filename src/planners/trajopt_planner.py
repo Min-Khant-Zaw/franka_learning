@@ -187,7 +187,7 @@ class TrajOpt(object):
             options={'disp': True, 'maxiter': self.MAX_ITER}
         )
         print(f"[DEBUG] Optimization success: {res.success}, message: {res.message}")
-        xi = res.x.reshape(self.n_waypoints, self.n_joints)
+        xi = res.x.reshape((self.n_waypoints, self.n_joints))
         return xi, res, time.time() - start_t
     
     def replan(self, weights, T, timestep):
