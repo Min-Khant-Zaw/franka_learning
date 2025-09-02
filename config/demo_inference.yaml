@@ -1,0 +1,28 @@
+defaults:
+  - robot_model: franka_panda
+
+ip: "localhost"
+
+setup:
+    object_centers: {"HUMAN_CENTER": [0.5, -0.55, 0.9], "LAPTOP_CENTER": [0.5, -0.1, 0.6]}
+    feat_list: ["efficiency", "table", "laptop"]
+    demo_spec: "all_0" # "simulate", "all" followed by task number, ID number followed by task number
+    demo_dir: "/data/demonstrations/demo/"
+
+sim:
+    task:
+        feat_weights: [1.0, 0.0, 0.0]
+        start: [0.4228, 0.7944, 0.3174, -1.6417, -1.1393, 1.0788, 0.3520]
+        goal: [-0.1232, 0.5194, -0.1834, -1.7041, -1.6972, 1.8819, 0.0170]
+        goal_pose: None
+        T: 30.0
+    planner:
+        type: "trajopt"
+        max_iter: 50
+        n_waypoints: 5
+
+learner:
+    trajs_path: "/data/traj_sets/traj_rand_merged_H.p"
+    betas_list: [0.01, 0.03, 0.1, 0.3, 1.0, 3.0, 10.0, 30.0, 100.0]
+    weight_vals: [0.0, 0.5, 1.0] # Per feature theta options.
+    FEAT_RANGE: {'table':1.0, 'coffee':1.0, 'laptop':1.6, 'human':1.6, 'efficiency':0.01}
