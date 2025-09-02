@@ -5,7 +5,6 @@ Control, planning, and learning system for human-robot interaction with a Franka
 ## Dependencies
 * Ubuntu 20.04, PyBullet
 * Polymetis
-* rospkg
 
 ## Running the Adaptive Physical HRI System
 ### Running the server and robot client for Franka
